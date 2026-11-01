@@ -1,0 +1,260 @@
+"""
+BillBook — new features (round 13).
+
+Pure functions first (no GUI imports, so they can be tested headless);
+CustomTkinter dialogs at the bottom, imported lazily by ui.py.
+
+Features:
+  1. Sales summary export to CSV (summary + day-wise + GST + top products
+     + profit by product, in one file with labelled sections).
+  2. Profit report by product (sale price - current purchase price per
+     line, same approximation as DB.profit_estimate: ignores overheads
+     and uses the product's current purchase price, not historical cost).
+  3. Customer dues reminders — ready-to-send WhatsApp text per customer.
+  4. Barcode label PDF (Code128, from the product SKU; falls back to the
+     product id when no SKU is saved).
+  5. Invoice search by customer name / bill no AND date range.
+"""
+
+import csv
+import re
+from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# 5. Invoice search: customer / bill no + date range
+# ---------------------------------------------------------------------------
+
+def search_bills(db, start, end, search=""):
+    """Bills between start and end (YYYY-MM-DD, inclusive), optionally
+    filtered by bill number or customer name. Newest first."""
+    sql = ("SELECT b.*, c.name AS customer_name FROM bills b "
+           "LEFT JOIN customers c ON c.id=b.customer_id "
+           "WHERE b.date BETWEEN ? AND ?")
+    params = [start, end]
+    if search:
+        sql += " AND (b.bill_no LIKE ? OR c.name LIKE ?)"
+        params += [f"%{search}%", f"%{search}%"]
+    sql += " ORDER BY b.id DESC"
+    return db._rows(sql, tuple(params))
+
+
+# ---------------------------------------------------------------------------
+# 2. Profit report by product
+# ---------------------------------------------------------------------------
+
+def profit_by_product(db, start, end):
+    """Per-product profit for the period, highest profit first.
+    Returns dict rows: name, qty, sales, cost, profit."""
+    rows = db._rows(
+        "SELECT bi.name, bi.unit, SUM(bi.qty) qty, "
+        "SUM(bi.qty*bi.price - bi.line_discount) sales, "
+        "SUM(bi.qty * COALESCE(p.purchase_price, 0)) cost "
+        "FROM bill_items bi JOIN bills b ON b.id=bi.bill_id "
+        "LEFT JOIN products p ON p.id=bi.product_id "
+        "WHERE b.date BETWEEN ? AND ? "
+        "GROUP BY bi.product_id, bi.name ORDER BY sales DESC",
+        (start, end))
+    out = []
+    for r in rows:
+        sales = float(r["sales"] or 0)
+        cost = float(r["cost"] or 0)
+        out.append({"name": r["name"], "unit": r["unit"],
+                    "qty": float(r["qty"] or 0), "sales": sales,
+                    "cost": cost, "profit": sales - cost})
+    return out
+
+
+# ---------------------------------------------------------------------------
+# 1. Sales summary export
+# ---------------------------------------------------------------------------
+
+def export_reports_csv(db, start, end, path):
+    """Write the full period report to one CSV file. Sections are
+    labelled in the first column so the file opens cleanly in Excel."""
+    path = Path(path)
+    s = db.sales_between(start, end)
+    profit = db.profit_estimate(start, end)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["BillBook report", f"{start} to {end}"])
+        w.writerow([])
+        w.writerow(["Summary"])
+        w.writerow(["Bills", s["n"]])
+        w.writerow(["Total sales", f"{float(s['t']):.2f}"])
+        w.writerow(["Discount given", f"{float(s['d']):.2f}"])
+        w.writerow(["GST collected", f"{float(s['g']):.2f}"])
+        w.writerow(["Profit estimate*", f"{float(profit):.2f}"])
+        w.writerow(["* Profit = sale price - purchase price per line; "
+                    "approx, ignores overheads."])
+        w.writerow([])
+        w.writerow(["Day-wise sales"])
+        w.writerow(["Date", "Bills", "Sales", "GST"])
+        for d in db.daywise_sales(start, end):
+            w.writerow([d["date"], d["n"], f"{float(d['t']):.2f}",
+                        f"{float(d['g']):.2f}"])
+        w.writerow([])
+        w.writerow(["GST summary"])
+        w.writerow(["GST slab", "Taxable value", "GST"])
+        for g in db.gst_summary(start, end):
+            w.writerow([f"{float(g['gst_percent']):g}%",
+                        f"{float(g['taxable']):.2f}",
+                        f"{float(g['gst']):.2f}"])
+        w.writerow([])
+        w.writerow(["Top products"])
+        w.writerow(["Product", "Qty sold", "Amount"])
+        for t in db.top_products(start, end, limit=50):
+            w.writerow([t["name"], f"{float(t['qty']):g} {t['unit']}",
+                        f"{float(t['total']):.2f}"])
+        w.writerow([])
+        w.writerow(["Profit by product"])
+        w.writerow(["Product", "Qty", "Sales", "Cost", "Profit"])
+        for p in profit_by_product(db, start, end):
+            w.writerow([p["name"], f"{p['qty']:g} {p['unit']}",
+                        f"{p['sales']:.2f}", f"{p['cost']:.2f}",
+                        f"{p['profit']:.2f}"])
+    return path
+
+
+# ---------------------------------------------------------------------------
+# 3. Dues reminders
+# ---------------------------------------------------------------------------
+
+def dues_reminder_message(shop_name, customer_name, balance):
+    """Polite, copy-ready reminder text. No phone number is used here;
+    the caller decides how to send it."""
+    shop = shop_name or "BillBook"
+    return (f"Hello {customer_name}, this is {shop}. "
+            f"Your outstanding balance is Rs. {float(balance):.2f}. "
+            f"Kindly pay at your convenience. Thank you!")
+
+
+def dues_reminders(db, shop_name=""):
+    """One reminder per customer with dues, largest balance first."""
+    out = []
+    for c in db.dues_list():
+        out.append({"customer_id": c["id"], "name": c["name"],
+                    "phone": c.get("phone") or "",
+                    "balance": float(c["balance"]),
+                    "message": dues_reminder_message(
+                        shop_name, c["name"], c["balance"])})
+    return out
+
+
+def whatsapp_link(phone, message):
+    """wa.me link for a message, or '' when no usable phone is saved."""
+    from urllib.parse import quote
+    digits = re.sub(r"\D", "", phone or "")
+    if len(digits) == 10:
+        digits = "91" + digits
+    if len(digits) < 12:
+        return ""
+    return f"https://wa.me/{digits}?text={quote(message)}"
+
+
+# ---------------------------------------------------------------------------
+# 4. Barcode label PDF
+# ---------------------------------------------------------------------------
+
+def generate_barcode_labels_pdf(products, dest_path, shop_name=""):
+    """A4 sheet of barcode labels, 3 across. Each label: product name,
+    Code128 barcode of the SKU (or 'BB-<id>' when no SKU is saved),
+    and the wholesale price. Returns the Path written."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+    from reportlab.graphics.barcode import code128
+
+    dest_path = Path(dest_path)
+    c = canvas.Canvas(str(dest_path), pagesize=A4)
+    page_w, page_h = A4
+    cols, label_w, label_h = 3, 62 * mm, 32 * mm
+    margin_x, margin_y, gap = 8 * mm, 10 * mm, 4 * mm
+    x0, y = margin_x, page_h - margin_y - label_h
+    col = 0
+    for p in products:
+        code = (p.get("sku") or "").strip() or f"BB-{p['id']}"
+        price = p.get("wholesale_price") or p.get("retail_price") or 0
+        x = x0 + col * (label_w + gap)
+        c.rect(x, y, label_w, label_h, stroke=1, fill=0)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(x + 3 * mm, y + label_h - 6 * mm,
+                     str(p["name"])[:28])
+        try:
+            bc = code128.Code128(code, barHeight=11 * mm, barWidth=0.4 * mm)
+            bc.drawOn(c, x + 3 * mm, y + 8 * mm)
+        except Exception:
+            c.setFont("Helvetica", 8)
+            c.drawString(x + 3 * mm, y + 10 * mm, code)
+        c.setFont("Helvetica", 9)
+        c.drawString(x + 3 * mm, y + 3.5 * mm,
+                     f"{code}  |  Rs. {float(price):.2f}")
+        col += 1
+        if col >= cols:
+            col = 0
+            y -= label_h + gap
+            if y < margin_y:
+                c.showPage()
+                y = page_h - margin_y - label_h
+    if shop_name:
+        c.setFont("Helvetica", 8)
+        c.drawRightString(page_w - margin_x, 8 * mm, shop_name)
+    c.save()
+    return dest_path
+
+
+# ---------------------------------------------------------------------------
+# GUI dialogs (lazy imports so the pure functions stay headless-testable)
+# ---------------------------------------------------------------------------
+
+def open_dues_reminders_dialog(parent, db, shop_name=""):
+    """Window listing every customer with dues + their reminder text,
+    with a Copy button and a WhatsApp button per row."""
+    import webbrowser
+    from tkinter import messagebox
+    import customtkinter as ctk
+
+    win = ctk.CTkToplevel(parent)
+    win.title("Dues reminders")
+    win.geometry("760x480")
+    win.transient(parent)
+    rows = dues_reminders(db, shop_name)
+    if not rows:
+        ctk.CTkLabel(win, text="No customers have outstanding dues.",
+                     font=ctk.CTkFont(size=14)).pack(pady=30)
+        return
+    total = sum(r["balance"] for r in rows)
+    ctk.CTkLabel(win, text=f"{len(rows)} customers  |  "
+                            f"Total dues: Rs. {total:.2f}",
+                 font=ctk.CTkFont(size=14, weight="bold")).pack(
+                     anchor="w", padx=12, pady=10)
+    scroll = ctk.CTkScrollableFrame(win)
+    scroll.pack(fill="both", expand=True, padx=10, pady=6)
+    for r in rows:
+        fr = ctk.CTkFrame(scroll)
+        fr.pack(fill="x", pady=4, padx=4)
+        ctk.CTkLabel(fr, text=f"{r['name']}  —  Rs. {r['balance']:.2f}",
+                     font=ctk.CTkFont(weight="bold")).pack(
+                         anchor="w", padx=8, pady=(6, 0))
+        msg = ctk.CTkLabel(fr, text=r["message"], wraplength=700)
+        msg.pack(anchor="w", padx=8)
+
+        def copy_msg(m=r["message"]):
+            win.clipboard_clear()
+            win.clipboard_append(m)
+            messagebox.showinfo("Copied", "Reminder text copied.")
+
+        def wa(m=r["message"], ph=r["phone"]):
+            link = whatsapp_link(ph, m)
+            if link:
+                webbrowser.open(link)
+            else:
+                messagebox.showinfo(
+                    "WhatsApp",
+                    "No phone number saved for this customer.")
+
+        ctk.CTkButton(fr, text="Copy", width=70,
+                      command=copy_msg).pack(side="left", padx=8, pady=6)
+        ctk.CTkButton(fr, text="WhatsApp", width=90, fg_color="#1f6f43",
+                      hover_color="#175733",
+                      command=wa).pack(side="left", padx=4, pady=6)

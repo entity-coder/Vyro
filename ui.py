@@ -462,6 +462,8 @@ class ProductsFrame(ctk.CTkFrame):
             side="right", padx=4)
         ctk.CTkButton(btns, text="Export CSV", command=self.export_csv).pack(
             side="right", padx=4)
+        ctk.CTkButton(btns, text="Barcode labels",
+                      command=self.barcode_labels).pack(side="right", padx=4)
 
         fr, self.tv = tree(self, self.COLS,
                             widths=(40, 200, 100, 75, 75, 75, 75, 110, 65,
@@ -656,6 +658,26 @@ class ProductsFrame(ctk.CTkFrame):
                             p["gst_percent"], p["stock"],
                             p["low_stock_threshold"], p["supplier"]])
         messagebox.showinfo("Export", f"Exported to {path}")
+
+    def barcode_labels(self):
+        products = self.db.list_products(self.search.get().strip())
+        if not products:
+            messagebox.showinfo("Barcode labels", "No products to print.")
+            return
+        try:
+            from new_features import generate_barcode_labels_pdf
+            from db import data_dir
+            shop = self.db.shop_profile().get("shop_name") or ""
+            pdf = generate_barcode_labels_pdf(
+                products, data_dir() / "barcode_labels.pdf", shop)
+            printing.open_pdf(pdf)
+            messagebox.showinfo(
+                "Barcode labels",
+                f"Label sheet saved at:\n{pdf}\n\n"
+                f"{len(products)} product(s), 3 labels per row.")
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Barcode labels",
+                                 f"Could not build the labels: {e}")
 
 
 class StockFrame(ctk.CTkFrame):
@@ -2314,6 +2336,8 @@ class CustomersFrame(ctk.CTkFrame):
         self.search.bind("<KeyRelease>", lambda e: self.refresh())
         ctk.CTkButton(top, text="Add customer",
                       command=self.add_dialog).pack(side="left", padx=4)
+        ctk.CTkButton(top, text="Dues reminders",
+                      command=self.dues_reminders).pack(side="left", padx=4)
         ctk.CTkButton(top, text="Record payment received", fg_color="#1f6f43",
                       hover_color="#175733",
                       command=self.payment_dialog).pack(side="left", padx=4)
@@ -2336,12 +2360,20 @@ class CustomersFrame(ctk.CTkFrame):
         for r in self.tv.get_children():
             self.tv.delete(r)
         for c in self.db.list_customers(self.search.get().strip()):
+            bal = float(c["balance"])
+            dues_txt = (f"Advance {-bal:.2f}" if bal < -0.004
+                        else f"{bal:.2f}")
             self.tv.insert("", "end", iid=c["id"], values=(
                 c["name"], c["phone"],
                 "Wholesale" if c["is_wholesale"] else "Retail",
-                f"{c['balance']:.2f}"))
+                dues_txt))
         self.dues_lbl.configure(
             text=f"Total dues: {money(self.db.total_dues())}")
+
+    def dues_reminders(self):
+        from new_features import open_dues_reminders_dialog
+        shop = self.db.shop_profile().get("shop_name") or ""
+        open_dues_reminders_dialog(self, self.db, shop)
 
     def selected_id(self):
         sel = self.tv.selection()
@@ -2526,17 +2558,26 @@ class InvoicesFrame(ctk.CTkFrame):
                                    width=280)
         self.search.pack(side="left", padx=4)
         self.search.bind("<KeyRelease>", lambda e: self.refresh())
-        ctk.CTkLabel(top, text="Date").pack(side="left", padx=(10, 2))
+        ctk.CTkLabel(top, text="From").pack(side="left", padx=(10, 2))
         self.date_e = ctk.CTkEntry(top, width=110,
                                    placeholder_text="YYYY-MM-DD")
         self.date_e.pack(side="left", padx=4)
+        ctk.CTkLabel(top, text="To").pack(side="left", padx=(6, 2))
+        self.to_e = ctk.CTkEntry(top, width=110,
+                                 placeholder_text="YYYY-MM-DD")
+        self.to_e.pack(side="left", padx=4)
+        self.date_e.bind("<KeyRelease>", lambda e: self.refresh())
+        self.to_e.bind("<KeyRelease>", lambda e: self.refresh())
         ctk.CTkButton(top, text="Today",
                       command=lambda: (self.date_e.delete(0, "end"),
                                        self.date_e.insert(0, today_iso()),
+                                       self.to_e.delete(0, "end"),
+                                       self.to_e.insert(0, today_iso()),
                                        self.refresh())).pack(side="left",
                                                               padx=2)
         ctk.CTkButton(top, text="Clear",
                       command=lambda: (self.date_e.delete(0, "end"),
+                                       self.to_e.delete(0, "end"),
                                        self.search.delete(0, "end"),
                                        self.refresh())).pack(side="left",
                                                               padx=2)
@@ -2571,8 +2612,16 @@ class InvoicesFrame(ctk.CTkFrame):
     def refresh(self):
         for r in self.tv.get_children():
             self.tv.delete(r)
-        day = self.date_e.get().strip() or None
-        for b in self.db.list_bills(self.search.get().strip(), day=day):
+        start = self.date_e.get().strip() or None
+        end = self.to_e.get().strip() or None
+        if start or end:
+            from new_features import search_bills
+            bills = search_bills(self.db, start or "2000-01-01",
+                                 end or today_iso(),
+                                 self.search.get().strip())
+        else:
+            bills = self.db.list_bills(self.search.get().strip())
+        for b in bills:
             n_items = len(self.db.bill_items(b["id"]))
             self.tv.insert("", "end", iid=b["id"], values=(
                 b["bill_no"], b["date"], b["customer_name"] or "Walk-in",
@@ -2735,6 +2784,8 @@ class ReportsFrame(ctk.CTkFrame):
                       command=lambda: set_range(30)).pack(side="left", padx=2)
         ctk.CTkButton(top, text="Refresh", command=self.refresh).pack(
             side="left", padx=8)
+        ctk.CTkButton(top, text="Export CSV",
+                      command=self.export_csv).pack(side="left", padx=4)
 
         self.cards = ctk.CTkFrame(self, fg_color="transparent")
         self.cards.pack(fill="x", pady=6)
@@ -2744,6 +2795,7 @@ class ReportsFrame(ctk.CTkFrame):
         tabs.add("Day-wise sales")
         tabs.add("GST summary")
         tabs.add("Top products")
+        tabs.add("Profit by product")
 
         fr, self.tv_day = tree(tabs.tab("Day-wise sales"),
                                ("Date", "Bills", "Sales", "GST collected"),
@@ -2758,7 +2810,29 @@ class ReportsFrame(ctk.CTkFrame):
                                 ("Product", "Qty sold", "Amount"),
                                 widths=(260, 100, 140), height=12)
         fr3.pack(fill="both", expand=True, padx=8, pady=8)
+        fr4, self.tv_profit = tree(tabs.tab("Profit by product"),
+                                   ("Product", "Qty", "Sales", "Cost",
+                                    "Profit"),
+                                   widths=(260, 100, 130, 130, 130),
+                                   height=12)
+        fr4.pack(fill="both", expand=True, padx=8, pady=8)
         set_range(30)  # fills the date boxes and renders everything
+
+    def export_csv(self):
+        start = self.from_e.get().strip() or "2000-01-01"
+        end = self.to_e.get().strip() or today_iso()
+        path = filedialog.asksaveasfilename(
+            defaultextension=".csv", filetypes=[("CSV files", "*.csv")],
+            title="Export report to CSV",
+            initialfile=f"billbook_report_{start}_to_{end}.csv")
+        if not path:
+            return
+        try:
+            from new_features import export_reports_csv
+            export_reports_csv(self.db, start, end, path)
+            messagebox.showinfo("Export", f"Report exported to {path}")
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Export", f"Could not export: {e}")
 
     def refresh(self):
         start = self.from_e.get().strip() or "2000-01-01"
@@ -2787,7 +2861,7 @@ class ReportsFrame(ctk.CTkFrame):
                      text_color="gray", font=ctk.CTkFont(size=11)).pack(
                          side="left", padx=8)
 
-        for tv in (self.tv_day, self.tv_gst, self.tv_top):
+        for tv in (self.tv_day, self.tv_gst, self.tv_top, self.tv_profit):
             for r in tv.get_children():
                 tv.delete(r)
         for d in self.db.daywise_sales(start, end):
@@ -2801,6 +2875,11 @@ class ReportsFrame(ctk.CTkFrame):
         for t in self.db.top_products(start, end, limit=50):
             self.tv_top.insert("", "end", values=(
                 t["name"], f"{t['qty']:g} {t['unit']}", money(t["total"])))
+        from new_features import profit_by_product
+        for p in profit_by_product(self.db, start, end):
+            self.tv_profit.insert("", "end", values=(
+                p["name"], f"{p['qty']:g} {p['unit']}", money(p["sales"]),
+                money(p["cost"]), money(p["profit"])))
 
 
 

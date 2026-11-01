@@ -18,6 +18,13 @@ no Chrome extension needed.
 
 ## Features
 
+- **Reports (round 13, Nov 2026)** — sales summary export to CSV
+  (summary + day-wise + GST + top products + profit by product),
+  profit-by-product tab in Reports, invoice search by bill no / customer
+  **and** date range, dues-reminder window with copy-ready WhatsApp text
+  per customer, and barcode label sheets (Code128, 3 per row) from the
+  product catalog. Negative customer balances now show as "Advance"
+  instead of a negative dues figure.
 - **Dashboard** — today's sales (bill count + total), pending dues, low-stock
   alerts, top-selling products of the last 7 days, total stock value.
 - **Billing (multi-bill tabs)** — open several bills at once: park one
