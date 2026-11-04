@@ -18,6 +18,10 @@ no Chrome extension needed.
 
 ## Features
 
+- **Customers (round 14, Nov 2026)** — **Export dues CSV** button next to
+  Dues reminders: exports every customer with outstanding dues to CSV
+  (Customer, Phone, Dues in Rs.), largest balance first, with a total
+  row. Customers with a negative balance (an advance) never appear.
 - **Reports (round 13, Nov 2026)** — sales summary export to CSV
   (summary + day-wise + GST + top products + profit by product),
   profit-by-product tab in Reports, invoice search by bill no / customer

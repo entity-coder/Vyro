@@ -14,6 +14,10 @@ Features:
   4. Barcode label PDF (Code128, from the product SKU; falls back to the
      product id when no SKU is saved).
   5. Invoice search by customer name / bill no AND date range.
+  6. Dues CSV export (2026-11-04): full outstanding-dues list to CSV,
+     largest balance first, with a total row. Customers with a negative
+     balance (an advance) never appear — dues_list() only returns
+     balance > 0.
 """
 
 import csv
@@ -150,6 +154,30 @@ def whatsapp_link(phone, message):
     if len(digits) < 12:
         return ""
     return f"https://wa.me/{digits}?text={quote(message)}"
+
+
+# ---------------------------------------------------------------------------
+# 6. Dues CSV export
+# ---------------------------------------------------------------------------
+
+def export_dues_csv(db, path):
+    """Write every customer with outstanding dues to one CSV file,
+    largest balance first, with a total row at the end. A customer
+    with a negative balance (an advance) is not a due and never
+    appears, because db.dues_list() only returns balance > 0.
+    An empty dues list still writes a header and a zero total."""
+    path = Path(path)
+    rows = db.dues_list()
+    total = sum(float(r["balance"]) for r in rows)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["Customer", "Phone", "Dues (Rs.)"])
+        for r in rows:
+            w.writerow([r["name"], r.get("phone") or "",
+                        f"{float(r['balance']):.2f}"])
+        w.writerow([])
+        w.writerow(["Total dues", "", f"{total:.2f}"])
+    return path
 
 
 # ---------------------------------------------------------------------------

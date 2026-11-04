@@ -2338,6 +2338,8 @@ class CustomersFrame(ctk.CTkFrame):
                       command=self.add_dialog).pack(side="left", padx=4)
         ctk.CTkButton(top, text="Dues reminders",
                       command=self.dues_reminders).pack(side="left", padx=4)
+        ctk.CTkButton(top, text="Export dues CSV",
+                      command=self.export_dues_csv).pack(side="left", padx=4)
         ctk.CTkButton(top, text="Record payment received", fg_color="#1f6f43",
                       hover_color="#175733",
                       command=self.payment_dialog).pack(side="left", padx=4)
@@ -2374,6 +2376,20 @@ class CustomersFrame(ctk.CTkFrame):
         from new_features import open_dues_reminders_dialog
         shop = self.db.shop_profile().get("shop_name") or ""
         open_dues_reminders_dialog(self, self.db, shop)
+
+    def export_dues_csv(self):
+        path = filedialog.asksaveasfilename(
+            defaultextension=".csv", filetypes=[("CSV files", "*.csv")],
+            title="Export dues to CSV",
+            initialfile="billbook_dues.csv")
+        if not path:
+            return
+        try:
+            from new_features import export_dues_csv
+            export_dues_csv(self.db, path)
+            messagebox.showinfo("Export", f"Dues exported to {path}")
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Export", f"Could not export: {e}")
 
     def selected_id(self):
         sel = self.tv.selection()
