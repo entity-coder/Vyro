@@ -18,6 +18,10 @@ Features:
      largest balance first, with a total row. Customers with a negative
      balance (an advance) never appear — dues_list() only returns
      balance > 0.
+  7. Monthly sales summary (2026-11-05): day-wise sales rolled up by
+     month (YYYY-MM) with bills, sales, discount and GST per month,
+     plus a totals row; shown as a Reports tab and as a section of
+     the report CSV export.
 """
 
 import csv
@@ -70,6 +74,29 @@ def profit_by_product(db, start, end):
 
 
 # ---------------------------------------------------------------------------
+# 7. Monthly sales summary
+# ---------------------------------------------------------------------------
+
+def monthly_sales_summary(db, start, end):
+    """Day-wise sales rolled up by month. Returns dict rows, oldest
+    month first: month ('YYYY-MM', from the YYYY-MM-DD bill date),
+    bills, sales (grand totals), discount (bill-level), gst.
+    Months with no bills do not appear — same as daywise_sales.
+    Same convention as sales_between: every bill in the range counts,
+    regardless of status."""
+    rows = db._rows(
+        "SELECT substr(date, 1, 7) month, COUNT(*) n, "
+        "SUM(grand_total) t, SUM(discount) d, SUM(gst_total) g "
+        "FROM bills WHERE date BETWEEN ? AND ? "
+        "GROUP BY month ORDER BY month",
+        (start, end))
+    return [{"month": r["month"], "bills": int(r["n"]),
+             "sales": float(r["t"] or 0),
+             "discount": float(r["d"] or 0),
+             "gst": float(r["g"] or 0)} for r in rows]
+
+
+# ---------------------------------------------------------------------------
 # 1. Sales summary export
 # ---------------------------------------------------------------------------
 
@@ -97,6 +124,12 @@ def export_reports_csv(db, start, end, path):
         for d in db.daywise_sales(start, end):
             w.writerow([d["date"], d["n"], f"{float(d['t']):.2f}",
                         f"{float(d['g']):.2f}"])
+        w.writerow([])
+        w.writerow(["Monthly sales"])
+        w.writerow(["Month", "Bills", "Sales", "Discount", "GST"])
+        for m in monthly_sales_summary(db, start, end):
+            w.writerow([m["month"], m["bills"], f"{m['sales']:.2f}",
+                        f"{m['discount']:.2f}", f"{m['gst']:.2f}"])
         w.writerow([])
         w.writerow(["GST summary"])
         w.writerow(["GST slab", "Taxable value", "GST"])

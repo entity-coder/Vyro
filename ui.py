@@ -2809,6 +2809,7 @@ class ReportsFrame(ctk.CTkFrame):
         tabs = ctk.CTkTabview(self)
         tabs.pack(fill="both", expand=True, pady=6)
         tabs.add("Day-wise sales")
+        tabs.add("Monthly sales")
         tabs.add("GST summary")
         tabs.add("Top products")
         tabs.add("Profit by product")
@@ -2817,6 +2818,11 @@ class ReportsFrame(ctk.CTkFrame):
                                ("Date", "Bills", "Sales", "GST collected"),
                                widths=(120, 70, 130, 130), height=12)
         fr.pack(fill="both", expand=True, padx=8, pady=8)
+        frm, self.tv_month = tree(tabs.tab("Monthly sales"),
+                                  ("Month", "Bills", "Sales", "Discount",
+                                   "GST collected"),
+                                  widths=(120, 70, 130, 130, 130), height=12)
+        frm.pack(fill="both", expand=True, padx=8, pady=8)
         fr2, self.tv_gst = tree(tabs.tab("GST summary"),
                                 ("GST slab", "Taxable value", "CGST", "SGST",
                                  "Total GST"),
@@ -2877,12 +2883,25 @@ class ReportsFrame(ctk.CTkFrame):
                      text_color="gray", font=ctk.CTkFont(size=11)).pack(
                          side="left", padx=8)
 
-        for tv in (self.tv_day, self.tv_gst, self.tv_top, self.tv_profit):
+        for tv in (self.tv_day, self.tv_month, self.tv_gst, self.tv_top,
+                  self.tv_profit):
             for r in tv.get_children():
                 tv.delete(r)
         for d in self.db.daywise_sales(start, end):
             self.tv_day.insert("", "end", values=(d["date"], d["n"],
                                                   money(d["t"]), money(d["g"])))
+        from new_features import monthly_sales_summary
+        months = monthly_sales_summary(self.db, start, end)
+        for m in months:
+            self.tv_month.insert("", "end", values=(
+                m["month"], m["bills"], money(m["sales"]),
+                money(m["discount"]), money(m["gst"])))
+        if months:
+            self.tv_month.insert("", "end", values=(
+                "Total", sum(m["bills"] for m in months),
+                money(sum(m["sales"] for m in months)),
+                money(sum(m["discount"] for m in months)),
+                money(sum(m["gst"] for m in months))))
         for g in self.db.gst_summary(start, end):
             taxable, gst = g["taxable"], g["gst"]
             self.tv_gst.insert("", "end", values=(

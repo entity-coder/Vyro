@@ -18,6 +18,11 @@ no Chrome extension needed.
 
 ## Features
 
+- **Reports (round 15, Nov 2026)** — **Monthly sales** tab in Reports:
+  day-wise sales rolled up by month (`YYYY-MM`), with bills, sales,
+  bill-level discount and GST collected per month, plus a totals row
+  for the whole range. The same monthly table is also a section of the
+  report CSV export. Months with no bills simply don't appear.
 - **Customers (round 14, Nov 2026)** — **Export dues CSV** button next to
   Dues reminders: exports every customer with outstanding dues to CSV
   (Customer, Phone, Dues in Rs.), largest balance first, with a total
