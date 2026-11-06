@@ -22,6 +22,10 @@ Features:
      month (YYYY-MM) with bills, sales, discount and GST per month,
      plus a totals row; shown as a Reports tab and as a section of
      the report CSV export.
+  8. Top customers (2026-11-06): customers ranked by total purchases
+     in the period, largest first, with bills, total and last purchase
+     date, plus a totals row; shown as a Reports tab and as a section
+     of the report CSV export.
 """
 
 import csv
@@ -97,6 +101,30 @@ def monthly_sales_summary(db, start, end):
 
 
 # ---------------------------------------------------------------------------
+# 8. Top customers
+# ---------------------------------------------------------------------------
+
+def top_customers(db, start, end):
+    """Customers ranked by total purchases in the period, largest
+    first. Returns dict rows: rank (1-based), name, phone, bills,
+    total (grand totals), last (latest bill date).
+    Same convention as monthly_sales_summary: every bill in the range
+    counts, regardless of status. Bills with no customer (walk-in)
+    have no name to rank and are excluded."""
+    rows = db._rows(
+        "SELECT c.name, c.phone, COUNT(*) n, SUM(b.grand_total) t, "
+        "MAX(b.date) last_date FROM bills b "
+        "JOIN customers c ON c.id=b.customer_id "
+        "WHERE b.date BETWEEN ? AND ? "
+        "GROUP BY c.id, c.name, c.phone ORDER BY t DESC",
+        (start, end))
+    return [{"rank": i + 1, "name": r["name"],
+             "phone": r.get("phone") or "", "bills": int(r["n"]),
+             "total": float(r["t"] or 0),
+             "last": r["last_date"]} for i, r in enumerate(rows)]
+
+
+# ---------------------------------------------------------------------------
 # 1. Sales summary export
 # ---------------------------------------------------------------------------
 
@@ -150,6 +178,13 @@ def export_reports_csv(db, start, end, path):
             w.writerow([p["name"], f"{p['qty']:g} {p['unit']}",
                         f"{p['sales']:.2f}", f"{p['cost']:.2f}",
                         f"{p['profit']:.2f}"])
+        w.writerow([])
+        w.writerow(["Top customers"])
+        w.writerow(["Rank", "Customer", "Phone", "Bills",
+                    "Total purchases", "Last purchase"])
+        for c in top_customers(db, start, end):
+            w.writerow([c["rank"], c["name"], c["phone"], c["bills"],
+                        f"{c['total']:.2f}", c["last"]])
     return path
 
 

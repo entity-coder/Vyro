@@ -2813,6 +2813,7 @@ class ReportsFrame(ctk.CTkFrame):
         tabs.add("GST summary")
         tabs.add("Top products")
         tabs.add("Profit by product")
+        tabs.add("Top customers")
 
         fr, self.tv_day = tree(tabs.tab("Day-wise sales"),
                                ("Date", "Bills", "Sales", "GST collected"),
@@ -2838,6 +2839,12 @@ class ReportsFrame(ctk.CTkFrame):
                                    widths=(260, 100, 130, 130, 130),
                                    height=12)
         fr4.pack(fill="both", expand=True, padx=8, pady=8)
+        fr5, self.tv_cust = tree(tabs.tab("Top customers"),
+                                 ("#", "Customer", "Phone", "Bills",
+                                  "Total purchases", "Last purchase"),
+                                 widths=(50, 260, 130, 70, 140, 120),
+                                 height=12)
+        fr5.pack(fill="both", expand=True, padx=8, pady=8)
         set_range(30)  # fills the date boxes and renders everything
 
     def export_csv(self):
@@ -2884,7 +2891,7 @@ class ReportsFrame(ctk.CTkFrame):
                          side="left", padx=8)
 
         for tv in (self.tv_day, self.tv_month, self.tv_gst, self.tv_top,
-                  self.tv_profit):
+                  self.tv_profit, self.tv_cust):
             for r in tv.get_children():
                 tv.delete(r)
         for d in self.db.daywise_sales(start, end):
@@ -2915,6 +2922,16 @@ class ReportsFrame(ctk.CTkFrame):
             self.tv_profit.insert("", "end", values=(
                 p["name"], f"{p['qty']:g} {p['unit']}", money(p["sales"]),
                 money(p["cost"]), money(p["profit"])))
+        from new_features import top_customers
+        cust = top_customers(self.db, start, end)
+        for c in cust:
+            self.tv_cust.insert("", "end", values=(
+                c["rank"], c["name"], c["phone"], c["bills"],
+                money(c["total"]), c["last"]))
+        if cust:
+            self.tv_cust.insert("", "end", values=(
+                "", "Total", "", sum(c["bills"] for c in cust),
+                money(sum(c["total"] for c in cust)), ""))
 
 
 
