@@ -7,25 +7,30 @@ CustomTkinter dialogs at the bottom, imported lazily by ui.py.
 Features:
   1. Sales summary export to CSV (summary + day-wise + GST + top products
      + profit by product, in one file with labelled sections).
-  2. Profit report by product (sale price - current purchase price per
+  2. Item-wise profit report (sale price - current purchase price per
      line, same approximation as DB.profit_estimate: ignores overheads
      and uses the product's current purchase price, not historical cost).
   3. Customer dues reminders — ready-to-send WhatsApp text per customer.
   4. Barcode label PDF (Code128, from the product SKU; falls back to the
      product id when no SKU is saved).
-  5. Invoice search by customer name / bill no AND date range.
+  5. Sale Register: bills by customer name / bill no AND date range.
   6. Dues CSV export (2026-11-04): full outstanding-dues list to CSV,
      largest balance first, with a total row. Customers with a negative
      balance (an advance) never appear — dues_list() only returns
      balance > 0.
-  7. Monthly sales summary (2026-11-05): day-wise sales rolled up by
+  7. Month-wise sales (2026-11-05): day-wise sales rolled up by
      month (YYYY-MM) with bills, sales, discount and GST per month,
      plus a totals row; shown as a Reports tab and as a section of
      the report CSV export.
-  8. Top customers (2026-11-06): customers ranked by total purchases
+  8. Party-wise sales (2026-11-06): customers ranked by total purchases
      in the period, largest first, with bills, total and last purchase
      date, plus a totals row; shown as a Reports tab and as a section
      of the report CSV export.
+  9. Round 17 renames (2026-11-07): the Reports data functions now use
+     Marg-ERP-style names — sale_register, month_wise_sales,
+     item_wise_profit, party_wise_sales — with matching tab labels
+     ("Month-wise sales", "Item-wise profit", "Party-wise sales").
+     No behaviour changed; only names and labels.
 """
 
 import csv
@@ -34,10 +39,10 @@ from pathlib import Path
 
 
 # ---------------------------------------------------------------------------
-# 5. Invoice search: customer / bill no + date range
+# 5. Sale Register: customer / bill no + date range
 # ---------------------------------------------------------------------------
 
-def search_bills(db, start, end, search=""):
+def sale_register(db, start, end, search=""):
     """Bills between start and end (YYYY-MM-DD, inclusive), optionally
     filtered by bill number or customer name. Newest first."""
     sql = ("SELECT b.*, c.name AS customer_name FROM bills b "
@@ -52,10 +57,10 @@ def search_bills(db, start, end, search=""):
 
 
 # ---------------------------------------------------------------------------
-# 2. Profit report by product
+# 2. Item-wise profit
 # ---------------------------------------------------------------------------
 
-def profit_by_product(db, start, end):
+def item_wise_profit(db, start, end):
     """Per-product profit for the period, highest profit first.
     Returns dict rows: name, qty, sales, cost, profit."""
     rows = db._rows(
@@ -78,10 +83,10 @@ def profit_by_product(db, start, end):
 
 
 # ---------------------------------------------------------------------------
-# 7. Monthly sales summary
+# 7. Month-wise sales
 # ---------------------------------------------------------------------------
 
-def monthly_sales_summary(db, start, end):
+def month_wise_sales(db, start, end):
     """Day-wise sales rolled up by month. Returns dict rows, oldest
     month first: month ('YYYY-MM', from the YYYY-MM-DD bill date),
     bills, sales (grand totals), discount (bill-level), gst.
@@ -101,14 +106,14 @@ def monthly_sales_summary(db, start, end):
 
 
 # ---------------------------------------------------------------------------
-# 8. Top customers
+# 8. Party-wise sales
 # ---------------------------------------------------------------------------
 
-def top_customers(db, start, end):
+def party_wise_sales(db, start, end):
     """Customers ranked by total purchases in the period, largest
     first. Returns dict rows: rank (1-based), name, phone, bills,
     total (grand totals), last (latest bill date).
-    Same convention as monthly_sales_summary: every bill in the range
+    Same convention as month_wise_sales: every bill in the range
     counts, regardless of status. Bills with no customer (walk-in)
     have no name to rank and are excluded."""
     rows = db._rows(
@@ -153,9 +158,9 @@ def export_reports_csv(db, start, end, path):
             w.writerow([d["date"], d["n"], f"{float(d['t']):.2f}",
                         f"{float(d['g']):.2f}"])
         w.writerow([])
-        w.writerow(["Monthly sales"])
+        w.writerow(["Month-wise sales"])
         w.writerow(["Month", "Bills", "Sales", "Discount", "GST"])
-        for m in monthly_sales_summary(db, start, end):
+        for m in month_wise_sales(db, start, end):
             w.writerow([m["month"], m["bills"], f"{m['sales']:.2f}",
                         f"{m['discount']:.2f}", f"{m['gst']:.2f}"])
         w.writerow([])
@@ -172,17 +177,17 @@ def export_reports_csv(db, start, end, path):
             w.writerow([t["name"], f"{float(t['qty']):g} {t['unit']}",
                         f"{float(t['total']):.2f}"])
         w.writerow([])
-        w.writerow(["Profit by product"])
+        w.writerow(["Item-wise profit"])
         w.writerow(["Product", "Qty", "Sales", "Cost", "Profit"])
-        for p in profit_by_product(db, start, end):
+        for p in item_wise_profit(db, start, end):
             w.writerow([p["name"], f"{p['qty']:g} {p['unit']}",
                         f"{p['sales']:.2f}", f"{p['cost']:.2f}",
                         f"{p['profit']:.2f}"])
         w.writerow([])
-        w.writerow(["Top customers"])
+        w.writerow(["Party-wise sales"])
         w.writerow(["Rank", "Customer", "Phone", "Bills",
                     "Total purchases", "Last purchase"])
-        for c in top_customers(db, start, end):
+        for c in party_wise_sales(db, start, end):
             w.writerow([c["rank"], c["name"], c["phone"], c["bills"],
                         f"{c['total']:.2f}", c["last"]])
     return path

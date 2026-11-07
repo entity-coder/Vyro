@@ -2631,8 +2631,8 @@ class InvoicesFrame(ctk.CTkFrame):
         start = self.date_e.get().strip() or None
         end = self.to_e.get().strip() or None
         if start or end:
-            from new_features import search_bills
-            bills = search_bills(self.db, start or "2000-01-01",
+            from new_features import sale_register
+            bills = sale_register(self.db, start or "2000-01-01",
                                  end or today_iso(),
                                  self.search.get().strip())
         else:
@@ -2809,17 +2809,17 @@ class ReportsFrame(ctk.CTkFrame):
         tabs = ctk.CTkTabview(self)
         tabs.pack(fill="both", expand=True, pady=6)
         tabs.add("Day-wise sales")
-        tabs.add("Monthly sales")
+        tabs.add("Month-wise sales")
         tabs.add("GST summary")
         tabs.add("Top products")
-        tabs.add("Profit by product")
-        tabs.add("Top customers")
+        tabs.add("Item-wise profit")
+        tabs.add("Party-wise sales")
 
         fr, self.tv_day = tree(tabs.tab("Day-wise sales"),
                                ("Date", "Bills", "Sales", "GST collected"),
                                widths=(120, 70, 130, 130), height=12)
         fr.pack(fill="both", expand=True, padx=8, pady=8)
-        frm, self.tv_month = tree(tabs.tab("Monthly sales"),
+        frm, self.tv_month = tree(tabs.tab("Month-wise sales"),
                                   ("Month", "Bills", "Sales", "Discount",
                                    "GST collected"),
                                   widths=(120, 70, 130, 130, 130), height=12)
@@ -2833,13 +2833,13 @@ class ReportsFrame(ctk.CTkFrame):
                                 ("Product", "Qty sold", "Amount"),
                                 widths=(260, 100, 140), height=12)
         fr3.pack(fill="both", expand=True, padx=8, pady=8)
-        fr4, self.tv_profit = tree(tabs.tab("Profit by product"),
+        fr4, self.tv_profit = tree(tabs.tab("Item-wise profit"),
                                    ("Product", "Qty", "Sales", "Cost",
                                     "Profit"),
                                    widths=(260, 100, 130, 130, 130),
                                    height=12)
         fr4.pack(fill="both", expand=True, padx=8, pady=8)
-        fr5, self.tv_cust = tree(tabs.tab("Top customers"),
+        fr5, self.tv_cust = tree(tabs.tab("Party-wise sales"),
                                  ("#", "Customer", "Phone", "Bills",
                                   "Total purchases", "Last purchase"),
                                  widths=(50, 260, 130, 70, 140, 120),
@@ -2897,8 +2897,8 @@ class ReportsFrame(ctk.CTkFrame):
         for d in self.db.daywise_sales(start, end):
             self.tv_day.insert("", "end", values=(d["date"], d["n"],
                                                   money(d["t"]), money(d["g"])))
-        from new_features import monthly_sales_summary
-        months = monthly_sales_summary(self.db, start, end)
+        from new_features import month_wise_sales
+        months = month_wise_sales(self.db, start, end)
         for m in months:
             self.tv_month.insert("", "end", values=(
                 m["month"], m["bills"], money(m["sales"]),
@@ -2917,13 +2917,13 @@ class ReportsFrame(ctk.CTkFrame):
         for t in self.db.top_products(start, end, limit=50):
             self.tv_top.insert("", "end", values=(
                 t["name"], f"{t['qty']:g} {t['unit']}", money(t["total"])))
-        from new_features import profit_by_product
-        for p in profit_by_product(self.db, start, end):
+        from new_features import item_wise_profit
+        for p in item_wise_profit(self.db, start, end):
             self.tv_profit.insert("", "end", values=(
                 p["name"], f"{p['qty']:g} {p['unit']}", money(p["sales"]),
                 money(p["cost"]), money(p["profit"])))
-        from new_features import top_customers
-        cust = top_customers(self.db, start, end)
+        from new_features import party_wise_sales
+        cust = party_wise_sales(self.db, start, end)
         for c in cust:
             self.tv_cust.insert("", "end", values=(
                 c["rank"], c["name"], c["phone"], c["bills"],

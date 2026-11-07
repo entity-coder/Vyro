@@ -18,7 +18,13 @@ no Chrome extension needed.
 
 ## Features
 
-- **Reports (round 15, Nov 2026)** — **Monthly sales** tab in Reports:
+- **Reports (round 17, Nov 2026)** — Marg-ERP-style names for the Reports
+  functions and tabs, no behaviour changed: the invoice search is now the
+  **Sale Register**, and the Reports tabs are **Month-wise sales**,
+  **Item-wise profit** and **Party-wise sales** (was Monthly sales,
+  Profit by product, Top customers). Same for the matching sections of
+  the report CSV export.
+- **Reports (round 15, Nov 2026)** — **Month-wise sales** tab in Reports:
   day-wise sales rolled up by month (`YYYY-MM`), with bills, sales,
   bill-level discount and GST collected per month, plus a totals row
   for the whole range. The same monthly table is also a section of the
@@ -28,12 +34,12 @@ no Chrome extension needed.
   (Customer, Phone, Dues in Rs.), largest balance first, with a total
   row. Customers with a negative balance (an advance) never appear.
 - **Reports (round 13, Nov 2026)** — sales summary export to CSV
-  (summary + day-wise + GST + top products + profit by product),
-  profit-by-product tab in Reports, invoice search by bill no / customer
-  **and** date range, dues-reminder window with copy-ready WhatsApp text
-  per customer, and barcode label sheets (Code128, 3 per row) from the
-  product catalog. Negative customer balances now show as "Advance"
-  instead of a negative dues figure.
+  (summary + day-wise + GST + top products + item-wise profit),
+  item-wise profit tab in Reports, Sale Register (invoice search by bill
+  no / customer **and** date range), dues-reminder window with copy-ready
+  WhatsApp text per customer, and barcode label sheets (Code128, 3 per
+  row) from the product catalog. Negative customer balances now show as
+  "Advance" instead of a negative dues figure.
 - **Dashboard** — today's sales (bill count + total), pending dues, low-stock
   alerts, top-selling products of the last 7 days, total stock value.
 - **Billing (multi-bill tabs)** — open several bills at once: park one
@@ -210,7 +216,7 @@ no Chrome extension needed.
   - Every choice saves to the database and applies to **every invoice from
     then on** — new prints, reprints, and previews. Missing settings fall
     back to the original defaults, so old databases keep working.
-- **Reports** — day-wise / monthly sales totals, GST summary by slab, profit
+- **Reports** — day-wise / month-wise sales totals, GST summary by slab, profit
   estimate (sale price − purchase price per line), top products.
 - **Backup/restore** — one-click backup writes a timestamped `.zip`
   (`billbook_backup_YYYYMMDD_HHMMSS.zip`) with the database, all saved
