@@ -499,9 +499,9 @@ class SuppliersFrame(ctk.CTkFrame):
                       command=self.payment_dialog).pack(side="left", padx=4)
         ctk.CTkButton(top, text="Payment history",
                       command=self.history_dialog).pack(side="left", padx=4)
-        self.dues_lbl = ctk.CTkLabel(top, text="",
+        self.payable_lbl = ctk.CTkLabel(top, text="",
                                      font=ctk.CTkFont(weight="bold"))
-        self.dues_lbl.pack(side="right", padx=12)
+        self.payable_lbl.pack(side="right", padx=12)
 
         fr, self.tv = _tree(self, ("Supplier", "Phone", "Payable \u20b9"),
                            widths=(260, 140, 130), height=20)
@@ -523,7 +523,7 @@ class SuppliersFrame(ctk.CTkFrame):
             self.tv.insert("", "end", iid=s["id"], values=(
                 s["name"], s["phone"],
                 f"{due:.2f}" if due > 0.004 else "\u2014"))
-        self.dues_lbl.configure(
+        self.payable_lbl.configure(
             text=f"Total payable: {money(self.db.total_creditors())}")
 
     def selected_id(self):

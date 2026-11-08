@@ -29,14 +29,14 @@ no Chrome extension needed.
   bill-level discount and GST collected per month, plus a totals row
   for the whole range. The same monthly table is also a section of the
   report CSV export. Months with no bills simply don't appear.
-- **Customers (round 14, Nov 2026)** — **Export dues CSV** button next to
-  Dues reminders: exports every customer with outstanding dues to CSV
-  (Customer, Phone, Dues in Rs.), largest balance first, with a total
+- **Customers (round 14, Nov 2026)** — **Export outstanding CSV** button next to
+  Outstanding reminders: exports every customer with an outstanding balance to CSV
+  (Customer, Phone, Outstanding in Rs.), largest balance first, with a total
   row. Customers with a negative balance (an advance) never appear.
 - **Reports (round 13, Nov 2026)** — sales summary export to CSV
   (summary + day-wise + GST + top products + item-wise profit),
   item-wise profit tab in Reports, Sale Register (invoice search by bill
-  no / customer **and** date range), dues-reminder window with copy-ready
+  no / customer **and** date range), outstanding-reminder window with copy-ready
   WhatsApp text per customer, and barcode label sheets (Code128, 3 per
   row) from the product catalog. Negative customer balances now show as
   "Advance" instead of a negative dues figure.

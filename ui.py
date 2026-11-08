@@ -1244,7 +1244,7 @@ class BillingFrame(ctk.CTkFrame):
                 lambda q: self.db.list_customers(q),
                 lambda c: (f"{c['name']}  \u2014 {c['phone']}"
                            + ("  [wholesale]" if c["is_wholesale"] else "  [retail]")
-                           + (f"  \u2014 dues {money(c['balance'])}"
+                           + (f"  \u2014 outstanding {money(c['balance'])}"
                               if c["balance"] > 0 else "")),
                 lambda c: self._set_customer(tab, c, w))
 
@@ -1412,9 +1412,9 @@ class BillingFrame(ctk.CTkFrame):
     def _refresh_customer_btn(self, tab, w):
         if tab.customer:
             c = tab.customer
-            dues = f" \u00b7 dues {money(c['balance'])}" if c["balance"] > 0 else ""
+            outst = f" \u00b7 outstanding {money(c['balance'])}" if c["balance"] > 0 else ""
             w["cust_btn"].configure(
-                text=f"{c['name']}{dues}")
+                text=f"{c['name']}{outst}")
         else:
             w["cust_btn"].configure(text="Walk-in \u2014 F4 to choose")
 
@@ -2336,10 +2336,10 @@ class CustomersFrame(ctk.CTkFrame):
         self.search.bind("<KeyRelease>", lambda e: self.refresh())
         ctk.CTkButton(top, text="Add customer",
                       command=self.add_dialog).pack(side="left", padx=4)
-        ctk.CTkButton(top, text="Dues reminders",
-                      command=self.dues_reminders).pack(side="left", padx=4)
-        ctk.CTkButton(top, text="Export dues CSV",
-                      command=self.export_dues_csv).pack(side="left", padx=4)
+        ctk.CTkButton(top, text="Outstanding reminders",
+                      command=self.outstanding_reminders).pack(side="left", padx=4)
+        ctk.CTkButton(top, text="Export outstanding CSV",
+                      command=self.export_outstanding_csv).pack(side="left", padx=4)
         ctk.CTkButton(top, text="Record payment received", fg_color="#1f6f43",
                       hover_color="#175733",
                       command=self.payment_dialog).pack(side="left", padx=4)
@@ -2348,11 +2348,11 @@ class CustomersFrame(ctk.CTkFrame):
         ctk.CTkButton(top, text="Delete",
                       fg_color="#b3261e", hover_color="#8f1d17",
                       command=self.delete_selected).pack(side="right", padx=4)
-        self.dues_lbl = ctk.CTkLabel(top, text="",
+        self.outstanding_lbl = ctk.CTkLabel(top, text="",
                                      font=ctk.CTkFont(weight="bold"))
-        self.dues_lbl.pack(side="right", padx=12)
+        self.outstanding_lbl.pack(side="right", padx=12)
 
-        fr, self.tv = tree(self, ("Name", "Phone", "Type", "Dues \u20b9"),
+        fr, self.tv = tree(self, ("Name", "Phone", "Type", "Outstanding \u20b9"),
                            widths=(220, 130, 90, 110), height=18)
         fr.pack(fill="both", expand=True, pady=6)
         self.tv.bind("<Double-1>", lambda e: self.statement_dialog())
@@ -2369,25 +2369,25 @@ class CustomersFrame(ctk.CTkFrame):
                 c["name"], c["phone"],
                 "Wholesale" if c["is_wholesale"] else "Retail",
                 dues_txt))
-        self.dues_lbl.configure(
-            text=f"Total dues: {money(self.db.total_dues())}")
+        self.outstanding_lbl.configure(
+            text=f"Total outstanding: {money(self.db.total_dues())}")
 
-    def dues_reminders(self):
-        from new_features import open_dues_reminders_dialog
+    def outstanding_reminders(self):
+        from new_features import open_outstanding_reminders_dialog
         shop = self.db.shop_profile().get("shop_name") or ""
-        open_dues_reminders_dialog(self, self.db, shop)
+        open_outstanding_reminders_dialog(self, self.db, shop)
 
-    def export_dues_csv(self):
+    def export_outstanding_csv(self):
         path = filedialog.asksaveasfilename(
             defaultextension=".csv", filetypes=[("CSV files", "*.csv")],
-            title="Export dues to CSV",
-            initialfile="billbook_dues.csv")
+            title="Export outstanding to CSV",
+            initialfile="billbook_outstanding.csv")
         if not path:
             return
         try:
-            from new_features import export_dues_csv
-            export_dues_csv(self.db, path)
-            messagebox.showinfo("Export", f"Dues exported to {path}")
+            from new_features import export_outstanding_csv
+            export_outstanding_csv(self.db, path)
+            messagebox.showinfo("Export", f"Outstanding list exported to {path}")
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Export", f"Could not export: {e}")
 

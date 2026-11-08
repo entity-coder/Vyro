@@ -10,11 +10,11 @@ Features:
   2. Item-wise profit report (sale price - current purchase price per
      line, same approximation as DB.profit_estimate: ignores overheads
      and uses the product's current purchase price, not historical cost).
-  3. Customer dues reminders — ready-to-send WhatsApp text per customer.
+  3. Customer outstanding reminders — ready-to-send WhatsApp text per customer.
   4. Barcode label PDF (Code128, from the product SKU; falls back to the
      product id when no SKU is saved).
   5. Sale Register: bills by customer name / bill no AND date range.
-  6. Dues CSV export (2026-11-04): full outstanding-dues list to CSV,
+  6. Outstanding CSV export (2026-11-04): full outstanding list to CSV,
      largest balance first, with a total row. Customers with a negative
      balance (an advance) never appear — dues_list() only returns
      balance > 0.
@@ -30,6 +30,14 @@ Features:
      Marg-ERP-style names — sale_register, month_wise_sales,
      item_wise_profit, party_wise_sales — with matching tab labels
      ("Month-wise sales", "Item-wise profit", "Party-wise sales").
+     No behaviour changed; only names and labels.
+ 10. Round 18 renames (2026-11-08): the Dues area now uses the Marg-ERP
+     word "Outstanding" — outstanding_reminder_message,
+     outstanding_reminders, export_outstanding_csv (CSV headers
+     "Outstanding (Rs.)" / "Total outstanding") and
+     open_outstanding_reminders_dialog — with matching Customers-tab
+     buttons, column and total labels. The db layer (db.dues_list,
+     db.total_dues) is untouched; renaming it is a later round.
      No behaviour changed; only names and labels.
 """
 
@@ -194,10 +202,10 @@ def export_reports_csv(db, start, end, path):
 
 
 # ---------------------------------------------------------------------------
-# 3. Dues reminders
+# 3. Outstanding reminders
 # ---------------------------------------------------------------------------
 
-def dues_reminder_message(shop_name, customer_name, balance):
+def outstanding_reminder_message(shop_name, customer_name, balance):
     """Polite, copy-ready reminder text. No phone number is used here;
     the caller decides how to send it."""
     shop = shop_name or "BillBook"
@@ -206,14 +214,14 @@ def dues_reminder_message(shop_name, customer_name, balance):
             f"Kindly pay at your convenience. Thank you!")
 
 
-def dues_reminders(db, shop_name=""):
-    """One reminder per customer with dues, largest balance first."""
+def outstanding_reminders(db, shop_name=""):
+    """One reminder per customer with an outstanding balance, largest balance first."""
     out = []
     for c in db.dues_list():
         out.append({"customer_id": c["id"], "name": c["name"],
                     "phone": c.get("phone") or "",
                     "balance": float(c["balance"]),
-                    "message": dues_reminder_message(
+                    "message": outstanding_reminder_message(
                         shop_name, c["name"], c["balance"])})
     return out
 
@@ -230,11 +238,11 @@ def whatsapp_link(phone, message):
 
 
 # ---------------------------------------------------------------------------
-# 6. Dues CSV export
+# 6. Outstanding CSV export
 # ---------------------------------------------------------------------------
 
-def export_dues_csv(db, path):
-    """Write every customer with outstanding dues to one CSV file,
+def export_outstanding_csv(db, path):
+    """Write every customer with an outstanding balance to one CSV file,
     largest balance first, with a total row at the end. A customer
     with a negative balance (an advance) is not a due and never
     appears, because db.dues_list() only returns balance > 0.
@@ -244,12 +252,12 @@ def export_dues_csv(db, path):
     total = sum(float(r["balance"]) for r in rows)
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["Customer", "Phone", "Dues (Rs.)"])
+        w.writerow(["Customer", "Phone", "Outstanding (Rs.)"])
         for r in rows:
             w.writerow([r["name"], r.get("phone") or "",
                         f"{float(r['balance']):.2f}"])
         w.writerow([])
-        w.writerow(["Total dues", "", f"{total:.2f}"])
+        w.writerow(["Total outstanding", "", f"{total:.2f}"])
     return path
 
 
@@ -308,25 +316,25 @@ def generate_barcode_labels_pdf(products, dest_path, shop_name=""):
 # GUI dialogs (lazy imports so the pure functions stay headless-testable)
 # ---------------------------------------------------------------------------
 
-def open_dues_reminders_dialog(parent, db, shop_name=""):
-    """Window listing every customer with dues + their reminder text,
+def open_outstanding_reminders_dialog(parent, db, shop_name=""):
+    """Window listing every customer with an outstanding balance + their reminder text,
     with a Copy button and a WhatsApp button per row."""
     import webbrowser
     from tkinter import messagebox
     import customtkinter as ctk
 
     win = ctk.CTkToplevel(parent)
-    win.title("Dues reminders")
+    win.title("Outstanding reminders")
     win.geometry("760x480")
     win.transient(parent)
-    rows = dues_reminders(db, shop_name)
+    rows = outstanding_reminders(db, shop_name)
     if not rows:
         ctk.CTkLabel(win, text="No customers have outstanding dues.",
                      font=ctk.CTkFont(size=14)).pack(pady=30)
         return
     total = sum(r["balance"] for r in rows)
     ctk.CTkLabel(win, text=f"{len(rows)} customers  |  "
-                            f"Total dues: Rs. {total:.2f}",
+                            f"Total outstanding: Rs. {total:.2f}",
                  font=ctk.CTkFont(size=14, weight="bold")).pack(
                      anchor="w", padx=12, pady=10)
     scroll = ctk.CTkScrollableFrame(win)
