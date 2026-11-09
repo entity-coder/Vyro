@@ -147,7 +147,7 @@ class ReturnDialog(ctk.CTkToplevel):
             total += taxable * (1 + float(bi["gst_percent"] or 0) / 100)
         self.tot_lbl.configure(
             text=f"Credit amount: {money(total)}"
-                 + ("  \u2014 will reduce khata dues"
+                 + ("  \u2014 will reduce the khata balance"
                     if self.bill["payment_type"] == "Credit"
                     and self.bill["customer_id"] else ""))
 
@@ -164,7 +164,7 @@ class ReturnDialog(ctk.CTkToplevel):
                 "Confirm return",
                 f"Create a credit note for {len(items)} line(s)?\n\n"
                 "Stock will be added back"
-                + (" and the customer's khata dues reduced."
+                + (" and the customer's khata balance reduced."
                    if self.bill["payment_type"] == "Credit"
                    and self.bill["customer_id"] else ".")):
             return

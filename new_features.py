@@ -16,7 +16,7 @@ Features:
   5. Sale Register: bills by customer name / bill no AND date range.
   6. Outstanding CSV export (2026-11-04): full outstanding list to CSV,
      largest balance first, with a total row. Customers with a negative
-     balance (an advance) never appear — dues_list() only returns
+     balance (an advance) never appear — outstanding_list() only returns
      balance > 0.
   7. Month-wise sales (2026-11-05): day-wise sales rolled up by
      month (YYYY-MM) with bills, sales, discount and GST per month,
@@ -31,13 +31,18 @@ Features:
      item_wise_profit, party_wise_sales — with matching tab labels
      ("Month-wise sales", "Item-wise profit", "Party-wise sales").
      No behaviour changed; only names and labels.
- 10. Round 18 renames (2026-11-08): the Dues area now uses the Marg-ERP
+ 10. Round 18 renames (2026-11-08): the customer-outstanding area now uses the Marg-ERP
      word "Outstanding" — outstanding_reminder_message,
      outstanding_reminders, export_outstanding_csv (CSV headers
      "Outstanding (Rs.)" / "Total outstanding") and
      open_outstanding_reminders_dialog — with matching Customers-tab
-     buttons, column and total labels. The db layer (db.dues_list,
-     db.total_dues) is untouched; renaming it is a later round.
+     buttons, column and total labels. The db layer was untouched then;
+     renaming it is Round 19 (see item 11).
+     No behaviour changed; only names and labels.
+ 11. Round 19 renames (2026-11-09): the db layer now uses the same
+     Marg-ERP words — outstanding_list and total_outstanding
+     (customers), suppliers_with_payables (suppliers) — with
+     matching callers, labels and README wording updated.
      No behaviour changed; only names and labels.
 """
 
@@ -217,7 +222,7 @@ def outstanding_reminder_message(shop_name, customer_name, balance):
 def outstanding_reminders(db, shop_name=""):
     """One reminder per customer with an outstanding balance, largest balance first."""
     out = []
-    for c in db.dues_list():
+    for c in db.outstanding_list():
         out.append({"customer_id": c["id"], "name": c["name"],
                     "phone": c.get("phone") or "",
                     "balance": float(c["balance"]),
@@ -244,11 +249,11 @@ def whatsapp_link(phone, message):
 def export_outstanding_csv(db, path):
     """Write every customer with an outstanding balance to one CSV file,
     largest balance first, with a total row at the end. A customer
-    with a negative balance (an advance) is not a due and never
-    appears, because db.dues_list() only returns balance > 0.
-    An empty dues list still writes a header and a zero total."""
+    with a negative balance (an advance) is not outstanding and never
+    appears, because db.outstanding_list() only returns balance > 0.
+    An empty outstanding list still writes a header and a zero total."""
     path = Path(path)
-    rows = db.dues_list()
+    rows = db.outstanding_list()
     total = sum(float(r["balance"]) for r in rows)
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
@@ -329,7 +334,7 @@ def open_outstanding_reminders_dialog(parent, db, shop_name=""):
     win.transient(parent)
     rows = outstanding_reminders(db, shop_name)
     if not rows:
-        ctk.CTkLabel(win, text="No customers have outstanding dues.",
+        ctk.CTkLabel(win, text="No customers have outstanding balances.",
                      font=ctk.CTkFont(size=14)).pack(pady=30)
         return
     total = sum(r["balance"] for r in rows)

@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS customers (
     phone       TEXT DEFAULT '',
     address     TEXT DEFAULT '',
     is_wholesale INTEGER NOT NULL DEFAULT 1,
-    balance     REAL NOT NULL DEFAULT 0   -- outstanding dues (khata)
+    balance     REAL NOT NULL DEFAULT 0   -- outstanding balance (khata)
 );
 
 CREATE TABLE IF NOT EXISTS bills (
@@ -587,17 +587,17 @@ class DB:
         return self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
     def customer_outstanding(self, customer_id):
-        """Outstanding dues = the running khata balance, which is kept
+        """Outstanding = the running khata balance, which is kept
         consistent by construction: credit bills add to it, payments and
         credit notes subtract from it."""
         c = self.get_customer(customer_id)
         return float(c["balance"]) if c else 0.0
 
-    def dues_list(self):
+    def outstanding_list(self):
         return self._rows("SELECT * FROM customers WHERE balance > 0.004 "
                           "ORDER BY balance DESC")
 
-    def total_dues(self):
+    def total_outstanding(self):
         r = self._one("SELECT COALESCE(SUM(balance), 0) t FROM customers "
                       "WHERE balance > 0")
         return r["t"]
@@ -1131,7 +1131,7 @@ class DB:
                          (sid,))["t"]
         return float(pur) - float(paid)
 
-    def suppliers_with_dues(self):
+    def suppliers_with_payables(self):
         out = []
         for s in self.list_suppliers():
             due = self.supplier_outstanding(s["id"])
@@ -1142,7 +1142,7 @@ class DB:
         return out
 
     def total_creditors(self):
-        return sum(s["outstanding"] for s in self.suppliers_with_dues())
+        return sum(s["outstanding"] for s in self.suppliers_with_payables())
 
     # -- outstanding aging (FIFO) -------------------------------------------
     @staticmethod
@@ -1186,11 +1186,11 @@ class DB:
         return [round(b, 2) for b in buckets]
 
     def customer_aging(self):
-        """Per-customer dues bucketed by age of the originating credit bill.
+        """Per-customer outstanding bucketed by age of the originating credit bill.
         FIFO assumption: payments and credit notes settle the oldest bills
-        first. Only credit bills create dues, so only they are bucketed."""
+        first. Only credit bills create outstanding balances, so only they are bucketed."""
         out = []
-        for c in self.dues_list():
+        for c in self.outstanding_list():
             bills = self._rows(
                 "SELECT date, grand_total AS total FROM bills "
                 "WHERE customer_id=? AND payment_type='Credit' "
@@ -1205,7 +1205,7 @@ class DB:
         """Per-supplier payables bucketed by age of the purchase bill.
         FIFO: payments settle the oldest purchases first."""
         out = []
-        for s in self.suppliers_with_dues():
+        for s in self.suppliers_with_payables():
             docs = self._rows(
                 "SELECT date, grand_total AS total FROM purchases "
                 "WHERE supplier_id=? ORDER BY date ASC, id ASC", (s["id"],))

@@ -39,8 +39,8 @@ no Chrome extension needed.
   no / customer **and** date range), outstanding-reminder window with copy-ready
   WhatsApp text per customer, and barcode label sheets (Code128, 3 per
   row) from the product catalog. Negative customer balances now show as
-  "Advance" instead of a negative dues figure.
-- **Dashboard** — today's sales (bill count + total), pending dues, low-stock
+  "Advance" instead of a negative outstanding figure.
+- **Dashboard** — today's sales (bill count + total), outstanding customer balances, low-stock
   alerts, top-selling products of the last 7 days, total stock value.
 - **Billing (multi-bill tabs)** — open several bills at once: park one
   customer's bill, serve the next, switch tabs freely. Each tab keeps its own
@@ -139,12 +139,12 @@ no Chrome extension needed.
 - **Stock management** — dedicated Stock IN screen (qty received, note for
   supplier) and Stock OUT (damage/returns), low-stock alerts, total stock
   value, and a full movement log (audit trail).
-- **Customer ledger (khata)** — per-customer outstanding dues, record
-  payments received (reduces dues), dues reminder view, per-customer
+- **Customer ledger (khata)** — per-customer outstanding balances, record
+  payments received (reduces the balance), outstanding reminder view, per-customer
   statement (bills + payments).
   - **Collect payment** — each customer row shows total outstanding; the
     dialog takes amount, date, mode (**Cash / UPI / Bank**) and a note.
-    The amount **cannot exceed the outstanding dues** (partial payments are
+    The amount **cannot exceed the outstanding balance** (partial payments are
     fine). Recording prints a small **payment receipt PDF** (A4 + thermal).
     Outstanding = credit bills − payments received − credit notes, kept
     consistent in the khata balance.
@@ -159,8 +159,8 @@ no Chrome extension needed.
   button per bill: a dialog lists the bill's items with billed qty and
   already-returned qty, and you enter the return qty per line (capped so the
   same item can never be returned twice). Confirming **adds the stock back**,
-  creates a numbered **credit note** (`CN-0001`, …), reduces the customer's
-  khata dues for credit bills, and generates a printable **credit-note PDF**
+  creates a numbered **credit note** (`CN-0001`, …), reduces the customer's khata balance
+  for credit bills, and generates a printable **credit-note PDF**
   (A4 + thermal, honoring your invoice-design settings).
 - **WhatsApp bill share** — the Invoices screen has a **WhatsApp** button per
   bill: it builds a text summary (shop name, bill no/date, item lines with
@@ -273,8 +273,8 @@ no Chrome extension needed.
   be > 0. Bill payments are deliberately **not** recorded here — bill cash
   stays on the bills, so nothing is double counted. Cash in hand on the
   Dashboard = this book's balance.
-- **Supplier ledger (creditors)** — new **Suppliers** screen mirroring
-  customer dues: each supplier's outstanding (purchases − payments made),
+- **Supplier ledger (creditors)** — new **Suppliers** screen mirroring customer outstanding:
+  each supplier's outstanding (purchases − payments made),
   a **Pay supplier** dialog (amount, date, mode Cash/UPI/Bank, note) that
   **cannot exceed the outstanding**, and a per-supplier payment history.
   Creditor totals feed the Dashboard strip and the supplier side of the
@@ -417,7 +417,7 @@ billbook_data`. After code changes, rebuild with `docker compose build`.
 - Single-user, single-PC: SQLite lives in one file; no multi-counter sync.
 - Profit estimate is sale − purchase per line only; it ignores overheads,
   wastage, and purchase-price changes over time.
-- Every bill requires a saved customer (walk-in bills must pick one) — dues
+- Every bill requires a saved customer (walk-in bills must pick one) — outstanding balances
   need a customer record to track against.
 
 ## Interview notes
@@ -617,10 +617,10 @@ history). (3) *Sales returns* — `returns`/`return_items` tables; per-line
 return qty is capped at billed-minus-already-returned (tracked in
 `return_items`), stock goes back up, credit bills reduce the khata balance,
 and a numbered credit note (`CN-0001`…) prints via a credit-note PDF that
-reuses the invoice Platypus layout with a CREDIT NOTE title. (4) *Dues
+reuses the invoice Platypus layout with a CREDIT NOTE title. (4) *Outstanding
 collection* — the khata dialog now takes date + mode (Cash/UPI/Bank, stored
 in a migrated `payments.mode` column), refuses amounts above the
-outstanding dues, and prints a payment-receipt PDF; outstanding stays
+outstanding balance, and prints a payment-receipt PDF; outstanding stays
 consistent by construction (credit bills add, payments and credit notes
 subtract). (5) *Repeat last bill* — loads the customer's latest bill into a
 fresh tab at current prices with a "loaded from bill X" note, for regular

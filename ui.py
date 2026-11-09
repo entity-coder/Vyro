@@ -332,7 +332,7 @@ class DashboardFrame(ctk.CTkFrame):
                          anchor="w", pady=(4, 10))
 
         n, total = db.sales_on(today_iso())
-        dues = db.total_dues()
+        outstanding = db.total_outstanding()
         creditors = db.total_creditors()
         cash = db.cash_balance()
         stock_val = db.stock_value()
@@ -346,7 +346,7 @@ class DashboardFrame(ctk.CTkFrame):
                 ("Bills today", str(n), "#0b5fa5"),
                 ("Sales today", money(total), "#1f6f43"),
                 ("Cash in hand", money(cash), "#1f6f43"),
-                ("Debtors (to receive)", money(dues), "#b3261e"),
+                ("Debtors (to receive)", money(outstanding), "#b3261e"),
                 ("Creditors (to pay)", money(creditors), "#b26a00"),
                 ("Stock value", money(stock_val), "#0b5fa5")]
         for title, value, color in glance:
@@ -2363,14 +2363,14 @@ class CustomersFrame(ctk.CTkFrame):
             self.tv.delete(r)
         for c in self.db.list_customers(self.search.get().strip()):
             bal = float(c["balance"])
-            dues_txt = (f"Advance {-bal:.2f}" if bal < -0.004
+            bal_txt = (f"Advance {-bal:.2f}" if bal < -0.004
                         else f"{bal:.2f}")
             self.tv.insert("", "end", iid=c["id"], values=(
                 c["name"], c["phone"],
                 "Wholesale" if c["is_wholesale"] else "Retail",
-                dues_txt))
+                bal_txt))
         self.outstanding_lbl.configure(
-            text=f"Total outstanding: {money(self.db.total_dues())}")
+            text=f"Total outstanding: {money(self.db.total_outstanding())}")
 
     def outstanding_reminders(self):
         from new_features import open_outstanding_reminders_dialog
@@ -2436,7 +2436,7 @@ class CustomersFrame(ctk.CTkFrame):
         outstanding = float(c["balance"])
         if outstanding <= 0.004:
             messagebox.showinfo("Payment",
-                                f"{c['name']} has no outstanding dues.")
+                                f"{c['name']} has no outstanding balance.")
             return
         win = ctk.CTkToplevel(self)
         win.title("Collect payment")
@@ -2444,7 +2444,7 @@ class CustomersFrame(ctk.CTkFrame):
         win.transient(self)
         win.grab_set()
         ctk.CTkLabel(
-            win, text=f"{c['name']} \u2014 dues {money(outstanding)}",
+            win, text=f"{c['name']} \u2014 outstanding {money(outstanding)}",
             font=ctk.CTkFont(weight="bold")).pack(pady=10)
         ctk.CTkLabel(win, text="Amount received (\u20b9) *").pack(
             anchor="w", padx=14)
@@ -2473,7 +2473,7 @@ class CustomersFrame(ctk.CTkFrame):
             if amt - outstanding > 0.004:
                 messagebox.showerror(
                     "Payment",
-                    f"Amount exceeds outstanding dues ({money(outstanding)}).")
+                    f"Amount exceeds the outstanding balance ({money(outstanding)}).")
                 return
             pay_date = date_e.get().strip() or today_iso()
             pay_id = self.db.record_payment(
@@ -2521,7 +2521,7 @@ class CustomersFrame(ctk.CTkFrame):
         ctk.CTkLabel(win, text=f"{c['name']}  \u00b7  {c['phone']}",
                      font=ctk.CTkFont(size=16, weight="bold")).pack(
                          anchor="w", padx=12, pady=(8, 2))
-        ctk.CTkLabel(win, text=f"Outstanding dues: {money(c['balance'])}",
+        ctk.CTkLabel(win, text=f"Outstanding balance: {money(c['balance'])}",
                      font=ctk.CTkFont(size=14, weight="bold"),
                      text_color="#b3261e").pack(anchor="w", padx=12, pady=4)
 
@@ -2729,7 +2729,7 @@ class InvoicesFrame(ctk.CTkFrame):
         if not messagebox.askyesno(
                 "Delete bill",
                 f"Delete {b['bill_no']} ({money(b['grand_total'])})?\n\n"
-                "Stock and customer dues will be reversed. This cannot be undone."):
+                "Stock and the customer's outstanding balance will be reversed. This cannot be undone."):
             return
         self.db.delete_bill(bid)
         self.refresh()

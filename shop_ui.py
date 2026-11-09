@@ -478,7 +478,7 @@ class ChallansFrame(ctk.CTkFrame):
 
 
 # ---------------------------------------------------------------------------
-# Supplier ledger (creditor payments) — mirror of customer dues collection
+# Supplier ledger (creditor payments) — mirror of customer outstanding collection
 # ---------------------------------------------------------------------------
 class SuppliersFrame(ctk.CTkFrame):
     def __init__(self, parent, db, app):
@@ -631,7 +631,7 @@ class AgingFrame(ctk.CTkFrame):
                          anchor="w", pady=(4, 2))
         ctk.CTkLabel(
             self,
-            text="Dues grouped by the age of the originating bill. Payments "
+            text="Outstanding grouped by the age of the originating bill. Payments "
                  "are assumed to settle the oldest bills first (FIFO).",
             text_color="gray", wraplength=760, justify="left").pack(
                 anchor="w", pady=(0, 6))
