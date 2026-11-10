@@ -5,10 +5,10 @@ Pure functions first (no GUI imports, so they can be tested headless);
 CustomTkinter dialogs at the bottom, imported lazily by ui.py.
 
 Features:
-  1. Sales summary export to CSV (summary + day-wise + GST + top products
-     + profit by product, in one file with labelled sections).
+  1. Sales summary export to CSV (summary + day-wise + GST + item-wise
+     sales + profit by product, in one file with labelled sections).
   2. Item-wise profit report (sale price - current purchase price per
-     line, same approximation as DB.profit_estimate: ignores overheads
+     line, same approximation as DB.estimated_profit: ignores overheads
      and uses the product's current purchase price, not historical cost).
   3. Customer outstanding reminders — ready-to-send WhatsApp text per customer.
   4. Barcode label PDF (Code128, from the product SKU; falls back to the
@@ -43,6 +43,12 @@ Features:
      Marg-ERP words — outstanding_list and total_outstanding
      (customers), suppliers_with_payables (suppliers) — with
      matching callers, labels and README wording updated.
+     No behaviour changed; only names and labels.
+ 12. Round 20 renames (2026-11-10): the db Reports query helpers now
+     use Marg-ERP-style names — day_book, sales_in_period,
+     day_wise_sales, gst_register, item_wise_sales, estimated_profit
+     — with matching callers, tab labels ("GST register",
+     "Item-wise sales") and CSV section headers.
      No behaviour changed; only names and labels.
 """
 
@@ -103,8 +109,8 @@ def month_wise_sales(db, start, end):
     """Day-wise sales rolled up by month. Returns dict rows, oldest
     month first: month ('YYYY-MM', from the YYYY-MM-DD bill date),
     bills, sales (grand totals), discount (bill-level), gst.
-    Months with no bills do not appear — same as daywise_sales.
-    Same convention as sales_between: every bill in the range counts,
+    Months with no bills do not appear — same as day_wise_sales.
+    Same convention as sales_in_period: every bill in the range counts,
     regardless of status."""
     rows = db._rows(
         "SELECT substr(date, 1, 7) month, COUNT(*) n, "
@@ -150,8 +156,8 @@ def export_reports_csv(db, start, end, path):
     """Write the full period report to one CSV file. Sections are
     labelled in the first column so the file opens cleanly in Excel."""
     path = Path(path)
-    s = db.sales_between(start, end)
-    profit = db.profit_estimate(start, end)
+    s = db.sales_in_period(start, end)
+    profit = db.estimated_profit(start, end)
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["BillBook report", f"{start} to {end}"])
@@ -167,7 +173,7 @@ def export_reports_csv(db, start, end, path):
         w.writerow([])
         w.writerow(["Day-wise sales"])
         w.writerow(["Date", "Bills", "Sales", "GST"])
-        for d in db.daywise_sales(start, end):
+        for d in db.day_wise_sales(start, end):
             w.writerow([d["date"], d["n"], f"{float(d['t']):.2f}",
                         f"{float(d['g']):.2f}"])
         w.writerow([])
@@ -177,16 +183,16 @@ def export_reports_csv(db, start, end, path):
             w.writerow([m["month"], m["bills"], f"{m['sales']:.2f}",
                         f"{m['discount']:.2f}", f"{m['gst']:.2f}"])
         w.writerow([])
-        w.writerow(["GST summary"])
+        w.writerow(["GST register"])
         w.writerow(["GST slab", "Taxable value", "GST"])
-        for g in db.gst_summary(start, end):
+        for g in db.gst_register(start, end):
             w.writerow([f"{float(g['gst_percent']):g}%",
                         f"{float(g['taxable']):.2f}",
                         f"{float(g['gst']):.2f}"])
         w.writerow([])
-        w.writerow(["Top products"])
+        w.writerow(["Item-wise sales"])
         w.writerow(["Product", "Qty sold", "Amount"])
-        for t in db.top_products(start, end, limit=50):
+        for t in db.item_wise_sales(start, end, limit=50):
             w.writerow([t["name"], f"{float(t['qty']):g} {t['unit']}",
                         f"{float(t['total']):.2f}"])
         w.writerow([])

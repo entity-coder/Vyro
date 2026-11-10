@@ -216,8 +216,8 @@ no Chrome extension needed.
   - Every choice saves to the database and applies to **every invoice from
     then on** — new prints, reprints, and previews. Missing settings fall
     back to the original defaults, so old databases keep working.
-- **Reports** — day-wise / month-wise sales totals, GST summary by slab, profit
-  estimate (sale price − purchase price per line), top products.
+- **Reports** — day-wise / month-wise sales totals, GST register by slab, profit
+  estimate (sale price − purchase price per line), item-wise sales.
 - **Backup/restore** — one-click backup writes a timestamped `.zip`
   (`billbook_backup_YYYYMMDD_HHMMSS.zip`) with the database, all saved
   invoice PDFs and the shop logo to any folder you pick (pen drive / Drive).
@@ -598,7 +598,7 @@ a file.
 
 **How I'd extend it:** UPI QR code on the invoice for the grand total,
 per-day cash-register closing (denomination count), and GST filing export
-(GSTR-1 style CSV of outward supplies by slab — the `gst_summary` query
+(GSTR-1 style CSV of outward supplies by slab — the `gst_register` query
 already computes the needed numbers). (Barcode scan-to-add and the supplier
 purchase ledger were on this list — both are now built.)
 

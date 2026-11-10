@@ -331,14 +331,14 @@ class DashboardFrame(ctk.CTkFrame):
                      font=ctk.CTkFont(size=22, weight="bold")).pack(
                          anchor="w", pady=(4, 10))
 
-        n, total = db.sales_on(today_iso())
+        n, total = db.day_book(today_iso())
         outstanding = db.total_outstanding()
         creditors = db.total_creditors()
         cash = db.cash_balance()
         stock_val = db.stock_value()
         low = db.low_stock_products()
         week_ago = (date.today() - timedelta(days=7)).isoformat()
-        top = db.top_products(week_ago, today_iso(), limit=8)
+        top = db.item_wise_sales(week_ago, today_iso(), limit=8)
         near_exp = db.near_expiry_products(60)
         cards = ctk.CTkFrame(self, fg_color="transparent")
         cards.pack(fill="x", pady=6)
@@ -2810,8 +2810,8 @@ class ReportsFrame(ctk.CTkFrame):
         tabs.pack(fill="both", expand=True, pady=6)
         tabs.add("Day-wise sales")
         tabs.add("Month-wise sales")
-        tabs.add("GST summary")
-        tabs.add("Top products")
+        tabs.add("GST register")
+        tabs.add("Item-wise sales")
         tabs.add("Item-wise profit")
         tabs.add("Party-wise sales")
 
@@ -2824,12 +2824,12 @@ class ReportsFrame(ctk.CTkFrame):
                                    "GST collected"),
                                   widths=(120, 70, 130, 130, 130), height=12)
         frm.pack(fill="both", expand=True, padx=8, pady=8)
-        fr2, self.tv_gst = tree(tabs.tab("GST summary"),
+        fr2, self.tv_gst = tree(tabs.tab("GST register"),
                                 ("GST slab", "Taxable value", "CGST", "SGST",
                                  "Total GST"),
                                 widths=(90, 130, 110, 110, 130), height=12)
         fr2.pack(fill="both", expand=True, padx=8, pady=8)
-        fr3, self.tv_top = tree(tabs.tab("Top products"),
+        fr3, self.tv_top = tree(tabs.tab("Item-wise sales"),
                                 ("Product", "Qty sold", "Amount"),
                                 widths=(260, 100, 140), height=12)
         fr3.pack(fill="both", expand=True, padx=8, pady=8)
@@ -2866,8 +2866,8 @@ class ReportsFrame(ctk.CTkFrame):
     def refresh(self):
         start = self.from_e.get().strip() or "2000-01-01"
         end = self.to_e.get().strip() or today_iso()
-        s = self.db.sales_between(start, end)
-        profit = self.db.profit_estimate(start, end)
+        s = self.db.sales_in_period(start, end)
+        profit = self.db.estimated_profit(start, end)
 
         for ch in self.cards.winfo_children():
             ch.destroy()
@@ -2894,7 +2894,7 @@ class ReportsFrame(ctk.CTkFrame):
                   self.tv_profit, self.tv_cust):
             for r in tv.get_children():
                 tv.delete(r)
-        for d in self.db.daywise_sales(start, end):
+        for d in self.db.day_wise_sales(start, end):
             self.tv_day.insert("", "end", values=(d["date"], d["n"],
                                                   money(d["t"]), money(d["g"])))
         from new_features import month_wise_sales
@@ -2909,12 +2909,12 @@ class ReportsFrame(ctk.CTkFrame):
                 money(sum(m["sales"] for m in months)),
                 money(sum(m["discount"] for m in months)),
                 money(sum(m["gst"] for m in months))))
-        for g in self.db.gst_summary(start, end):
+        for g in self.db.gst_register(start, end):
             taxable, gst = g["taxable"], g["gst"]
             self.tv_gst.insert("", "end", values=(
                 f"{g['gst_percent']:g}%", money(taxable), money(gst / 2),
                 money(gst / 2), money(gst)))
-        for t in self.db.top_products(start, end, limit=50):
+        for t in self.db.item_wise_sales(start, end, limit=50):
             self.tv_top.insert("", "end", values=(
                 t["name"], f"{t['qty']:g} {t['unit']}", money(t["total"])))
         from new_features import item_wise_profit

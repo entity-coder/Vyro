@@ -1236,24 +1236,24 @@ class DB:
         return rows
 
     # -- dashboard / reports ------------------------------------------------
-    def sales_on(self, day):
+    def day_book(self, day):
         r = self._one("SELECT COUNT(*) n, COALESCE(SUM(grand_total),0) t "
                       "FROM bills WHERE date=?", (day,))
         return r["n"], r["t"]
 
-    def sales_between(self, start, end):
+    def sales_in_period(self, start, end):
         r = self._one("SELECT COUNT(*) n, COALESCE(SUM(grand_total),0) t, "
                       "COALESCE(SUM(discount),0) d, COALESCE(SUM(gst_total),0) g"
                       " FROM bills WHERE date BETWEEN ? AND ?", (start, end))
         return r
 
-    def daywise_sales(self, start, end):
+    def day_wise_sales(self, start, end):
         return self._rows(
             "SELECT date, COUNT(*) n, SUM(grand_total) t, SUM(gst_total) g "
             "FROM bills WHERE date BETWEEN ? AND ? GROUP BY date ORDER BY date",
             (start, end))
 
-    def gst_summary(self, start, end):
+    def gst_register(self, start, end):
         rows = self._rows(
             "SELECT bi.gst_percent, SUM(bi.qty*bi.price - bi.line_discount) taxable,"
             " SUM(bi.line_total - (bi.qty*bi.price - bi.line_discount)) gst "
@@ -1262,14 +1262,14 @@ class DB:
             "ORDER BY bi.gst_percent", (start, end))
         return rows
 
-    def top_products(self, start, end, limit=10):
+    def item_wise_sales(self, start, end, limit=10):
         return self._rows(
             "SELECT bi.name, bi.unit, SUM(bi.qty) qty, SUM(bi.line_total) total "
             "FROM bill_items bi JOIN bills b ON b.id=bi.bill_id "
             "WHERE b.date BETWEEN ? AND ? GROUP BY bi.product_id, bi.name "
             "ORDER BY qty DESC LIMIT ?", (start, end, limit))
 
-    def profit_estimate(self, start, end):
+    def estimated_profit(self, start, end):
         """Sale price minus purchase price per line (approx; ignores stock
         timing and discounts beyond line totals)."""
         rows = self._rows(
