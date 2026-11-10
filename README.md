@@ -306,6 +306,25 @@ no Chrome extension needed.
   Keyboard friendly: arrows move, Enter toggles a row, Esc clears the
   selection; a healthy stock shows "All stock is healthy" instead of an
   empty grid.
+- **AI Insights** — a dedicated **AI Insights** sidebar screen (all new code
+  in `ai_features.py`, so `ui.py` stays under the push-file limit):
+  demand forecasting from the last 28 days of sales (average daily rate per
+  item); forecast-based re-order suggestions (lead 3 days, cover 14, safety
+  2; quantities rounded up to pack size) with a draft purchase order grouped
+  by supplier — **Load into Purchases** pre-fills it, nothing is ordered
+  until you save; an expiring-products system that predicts unsold stock at
+  expiry, suggests clearance discounts, lists what to sell first, and blocks
+  expired items from billing until they are written off; auto outstanding
+  reminders in English, Hindi or Marathi, scheduled from the outstanding
+  aging and sent with one tap through the existing WhatsApp share link;
+  dead-stock, price/margin and lapsed-regular insights; and a plain-language
+  assistant. The assistant runs locally on Qwen3-4B via Ollama when
+  installed, with a Gemini API fallback (key saved in the Assistant tab) —
+  it only explains the numbers and drafts text for review; all figures are
+  calculated from your own sales/stock data, never by the model. Voice
+  input is not built: it needs a microphone and a speech-to-text engine;
+  typed questions work instead. Verified by 71 headless checks in
+  `test_ai_features.py`.
 
 ## Deliberately out of scope (why)
 
@@ -419,6 +438,12 @@ billbook_data`. After code changes, rebuild with `docker compose build`.
   wastage, and purchase-price changes over time.
 - Every bill requires a saved customer (walk-in bills must pick one) — outstanding balances
   need a customer record to track against.
+- **WhatsApp reminders are one tap, not auto-send** — WhatsApp offers no
+  official auto-send API for a desktop app, and unofficial automation risks
+  a ban, so reminders are scheduled drafts you send with one tap; sent
+  reminders are logged so they are not repeated within 7 days.
+- **Local AI needs Ollama installed** — without it the assistant says so
+  plainly and offers the Gemini API fallback; nothing crashes.
 
 ## Interview notes
 

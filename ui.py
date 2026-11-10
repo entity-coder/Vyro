@@ -109,6 +109,7 @@ NAV = [
     ("Purchases", "purchases"),
     ("Stock", "stock"),
     ("Re-Order", "reorder"),
+    ("AI Insights", "ai"),
     ("Customers", "customers"),
     ("Suppliers", "suppliers"),
     ("Cash Book", "cashbook"),
@@ -294,6 +295,9 @@ class App(ctk.CTk):
         elif key == "reorder":
             from shop_ui import ReOrderFrame
             screen_cls = ReOrderFrame
+        elif key == "ai":
+            from ai_features import ai_screen_class
+            screen_cls = ai_screen_class()
         else:
             screen_cls = {"dashboard": DashboardFrame, "billing": BillingFrame,
                           "products": ProductsFrame, "stock": StockFrame,
@@ -1870,6 +1874,13 @@ class BillingFrame(ctk.CTkFrame):
         if not tab.payment_type:
             messagebox.showerror("Billing",
                                  "Choose a payment type (Cash / UPI / Credit).")
+            return False
+        from ai_features import billing_blocked_lines
+        blocked = billing_blocked_lines(self.db, tab.items)
+        if blocked:
+            messagebox.showerror(
+                "Billing",
+                f"{blocked[0]} is expired - write it off in AI Insights.")
             return False
         return True
 
