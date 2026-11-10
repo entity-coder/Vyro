@@ -46,6 +46,7 @@ user-facing strings — generic "wholesale/kirana shop" only.
 """
 
 import json
+import local_ai_setup
 import math
 import re
 import urllib.error
@@ -946,6 +947,21 @@ def ai_screen_class():
             self.key_entry.pack(side="left", fill="x", expand=True, padx=3)
             ctk.CTkButton(ai_row, text="Save key", width=80,
                           command=self._save_key).pack(side="left", padx=3)
+            setup_row = ctk.CTkFrame(self, fg_color="transparent")
+            self.setup_row = setup_row
+            self.setup_btn = ctk.CTkButton(
+                setup_row, text="Download local AI",
+                command=self._setup_local_ai)
+            self.setup_btn.pack(side="left", padx=3)
+            self.setup_bar = ctk.CTkProgressBar(setup_row, width=220)
+            self.setup_bar.set(0)
+            self.setup_bar.pack(side="left", fill="x", expand=True, padx=3)
+            self.setup_cancel = ctk.CTkButton(
+                setup_row, text="Cancel", width=80,
+                command=self._cancel_setup, state="disabled")
+            self.setup_cancel.pack(side="left", padx=3)
+            self._setup_cancelled = False
+            setup_row.pack(fill="x", pady=4)
             self.status = ctk.CTkLabel(self, text="", text_color="gray")
             self.status.pack(anchor="w")
             self._refresh()
@@ -985,6 +1001,10 @@ def ai_screen_class():
                      + (", ".join(status["models"]) or "none installed")
                      if status["available"] else
                      "Ollama: not running on this PC")
+            label = local_ai_setup.button_label(
+                local_ai_setup.detect_state(
+                    local_ai_setup.find_ollama(), status["models"],
+                    cfg["local_model"]))
             return ("Assistant — ask in plain words. It explains the "
                     "numbers on the other tabs and drafts orders, "
                     "reminders and summaries for review.\n\n"
@@ -993,7 +1013,10 @@ def ai_screen_class():
                     f"({'key saved' if cfg['gemini_key'] else 'no key saved'}).\n"
                     f"Voice: {why if not ok else 'available'}\n\n"
                     "Try: 'what should I order this week?' or "
-                    "'which customers owe the most?'")
+                    "'which customers owe the most?'\n\n"
+                    f"Tip: tap '{label}' below and BillBook installs "
+                    "it for you. "
+                    f"{local_ai_setup.manual_steps_text(cfg['local_model'])}")
 
         def _show(self, key):
             self.section = key
@@ -1004,6 +1027,13 @@ def ai_screen_class():
             self.text.delete("1.0", "end")
             self.text.insert("1.0", self._report())
             self.text.configure(state="disabled")
+            if self.section == "assistant":
+                self.setup_btn.configure(
+                    text=local_ai_setup.button_label(
+                        self._setup_state()))
+                self.setup_row.pack(fill="x", pady=4)
+            else:
+                self.setup_row.pack_forget()
 
         def _copy(self):
             self.clipboard_clear()
@@ -1020,6 +1050,84 @@ def ai_screen_class():
                 self.db.set_setting("ai_gemini_key", key)
                 self.key_entry.delete(0, "end")
                 messagebox.showinfo("Assistant", "Gemini API key saved.")
+            self._refresh()
+
+        def _setup_state(self):
+            cfg = ai_settings(self.db)
+            return local_ai_setup.current_state(cfg["local_model"],
+                                                cfg["local_url"])
+
+        def _setup_local_ai(self):
+            import threading
+            cfg = ai_settings(self.db)
+            state = local_ai_setup.current_state(cfg["local_model"],
+                                                 cfg["local_url"])
+            if not messagebox.askyesno(
+                    "Download local AI",
+                    local_ai_setup.confirm_text(state,
+                                                cfg["local_model"])):
+                return
+            self._setup_cancelled = False
+            self.setup_btn.configure(state="disabled")
+            self.setup_cancel.configure(state="normal")
+            self.setup_bar.set(0)
+            self.status.configure(text="Starting…")
+
+            def on_status(text):
+                try:
+                    self.after(0, lambda t=text: self._setup_status(t))
+                except Exception:
+                    pass  # window closed mid-setup — nothing to show
+
+            def on_progress(value):
+                try:
+                    self.after(0,
+                               lambda v=value: self._setup_progress(v))
+                except Exception:
+                    pass
+
+            def work():
+                res = local_ai_setup.run_setup(
+                    cfg["local_model"], cfg["local_url"], on_status,
+                    on_progress, lambda: self._setup_cancelled)
+                try:
+                    self.after(0, lambda: self._setup_done(res))
+                except Exception:
+                    pass
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _cancel_setup(self):
+            self._setup_cancelled = True
+            self.setup_cancel.configure(state="disabled")
+            self.status.configure(text="Cancelling…")
+
+        def _setup_status(self, text):
+            self.status.configure(text=text)
+
+        def _setup_progress(self, value):
+            if value is None:
+                self.setup_bar.start()
+            else:
+                self.setup_bar.stop()
+                self.setup_bar.set(max(0.0, min(1.0, value)))
+
+        def _setup_done(self, res):
+            self.setup_btn.configure(state="normal")
+            self.setup_cancel.configure(state="disabled")
+            self.setup_bar.stop()
+            if res["ok"]:
+                self.setup_bar.set(1.0)
+                # Provider flip on the GUI thread: the worker never
+                # touches the database (SQLite is single-thread).
+                self.db.set_setting("ai_provider", "local")
+                self.prov_var.set("local")
+                self.status.configure(
+                    text="Local AI ready (Qwen3-4B, on this PC) — the "
+                         "assistant now answers offline.")
+            else:
+                self.setup_bar.set(0)
+                self.status.configure(text=res["error"])
             self._refresh()
 
         def _load_reorder(self):
