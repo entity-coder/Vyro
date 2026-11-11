@@ -321,10 +321,13 @@ no Chrome extension needed.
   assistant. The assistant runs locally on Qwen3-4B via Ollama when
   installed, with a Gemini API fallback (key saved in the Assistant tab) —
   it only explains the numbers and drafts text for review; all figures are
-  calculated from your own sales/stock data, never by the model. Voice
-  input is not built: it needs a microphone and a speech-to-text engine;
-  typed questions work instead. Verified by 71 headless checks in
-  `test_ai_features.py`.
+  calculated from your own sales/stock data, never by the model. Common
+  questions — how much stock is left, who owes what, what expires soon,
+  what will sell, what to order — are answered straight from the shop's
+  own data with no AI model installed at all; anything else goes to the
+  assistant. Voice input is not built: it needs a microphone and a
+  speech-to-text engine; typed questions work instead. Verified by 85
+  headless checks in `test_ai_features.py`.
 
 ## Deliberately out of scope (why)
 

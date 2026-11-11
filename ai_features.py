@@ -36,7 +36,10 @@ What lives here, in build order:
      and says so in the UI.
   6. Dead-stock prediction, price/margin suggestions, customer
      insights (regulars who stopped coming).
-  7. Voice assistant — text-command parsing only (testable headless).
+  7. Voice assistant — typed commands are parsed by parse_command
+     and the common ones (stock, dues, expiry, forecast, order) are
+     answered straight from the shop's own data by answer_from_data,
+     with no AI model installed. Anything else goes to the LLM.
      Voice input itself needs a microphone and a speech-to-text
      engine, which this PC does not have; voice_available() says so
      and the Assistant tab takes typed questions instead.
@@ -683,8 +686,14 @@ ASSISTANT_SYSTEM = (
 def assistant_ask(db, question, provider=None, as_of=None):
     """Ask the assistant a plain-language question. Provider order:
     'local' (Ollama only), 'api' (Gemini only), 'auto' (local first,
-    API fallback). Always returns a dict — never raises, never
-    crashes when Ollama is missing."""
+    API fallback). Common shop questions are answered straight from
+    the shop's own data first (see answer_from_data) — the LLM is
+    only needed for the rest. Always returns a dict — never raises,
+    never crashes when Ollama is missing."""
+    direct = answer_from_data(db, question, as_of=as_of)
+    if direct is not None:
+        return {"ok": True, "provider": "shop data",
+                "model": "no AI model needed", "answer": direct}
     cfg = ai_settings(db)
     provider = provider or cfg["provider"]
     context = assistant_context(db, as_of=as_of)
@@ -743,8 +752,8 @@ def voice_available():
 _COMMAND_WORDS = {
     "order": ("order", "reorder", "buy", "purchase", "mangao", "order karo"),
     "stock": ("stock", "left", "available", "kitna bacha", "bacha"),
-    "outstanding": ("due", "pending", "payment", "udhar", "bakaya",
-             "outstanding"),
+    "outstanding": ("due", "pending", "payment", "owe", "owes", "udhar",
+             "bakaya", "outstanding"),
     "expiry": ("expir", "expiry", "expire"),
     "forecast": ("sell", "sales", "forecast", "demand", "bikega"),
 }
@@ -767,6 +776,132 @@ def parse_command(text, db=None):
                 product = p["name"]
                 break
     return {"intent": intent, "product": product, "text": text or ""}
+
+
+def _product_named(db, name):
+    """Product row whose name matches (case-insensitive), or None."""
+    for p in db.list_products():
+        if p["name"].lower() == name.lower():
+            return p
+    return None
+
+
+def answer_from_data(db, question, as_of=None):
+    """Answer common shop questions straight from the shop's own data —
+    no AI model, no internet, no waiting. Returns the answer text, or
+    None when the question is not one of the known kinds (the caller
+    then falls through to the LLM). Every figure comes from the same
+    pure functions the AI Insights tabs use, so the answers always
+    agree with the numbers on screen."""
+    as_of = _as_of(as_of)
+    cmd = parse_command(question, db)
+    intent, name = cmd["intent"], cmd["product"]
+    if intent == "general":
+        return None
+    if intent == "stock":
+        if name:
+            p = _product_named(db, name)
+            if not p:
+                return None
+            stock = float(p["stock"] or 0)
+            line = f"{p['name']}: {stock:g} {p['unit'] or 'pcs'} in stock."
+            f = forecast_demand(db, p["id"], as_of=as_of)
+            if f:
+                line += (f" It sells about {f['daily_rate']} a day, so "
+                         f"this lasts about {f['days_of_stock']} days.")
+            return line
+        rows = sorted(db.list_products(),
+                      key=lambda p: float(p["stock"] or 0))
+        if not rows:
+            return "No products saved yet — add products first."
+        lines = ["Lowest stock right now:"]
+        for p in rows[:5]:
+            lines.append(f"- {p['name']}: {float(p['stock'] or 0):g} "
+                         f"{p['unit'] or 'pcs'}")
+        return "\n".join(lines)
+    if intent == "outstanding":
+        rows = db.outstanding_list()
+        t = (question or "").strip().lower()
+        for c in rows:
+            if c["name"].lower() in t:
+                return (f"{c['name']} owes "
+                        f"Rs. {float(c['balance']):,.2f}.")
+        if not rows:
+            return ("Nobody owes anything right now — "
+                    "no outstanding balances.")
+        total = db.total_outstanding()
+        lines = [f"Outstanding balances (Rs. {total:,.2f} in total):"]
+        for c in rows[:5]:
+            lines.append(f"- {c['name']}: Rs. {float(c['balance']):,.2f}")
+        if len(rows) > 5:
+            lines.append(f"...and {len(rows) - 5} more customers.")
+        return "\n".join(lines)
+    if intent == "expiry":
+        risks = expiry_risk(db, as_of=as_of)
+        if name:
+            risks = [r for r in risks if r["name"] == name]
+            if not risks:
+                return (f"{name} has no purchase lot expiring in the "
+                        f"next {EXPIRY_WARN_DAYS} days.")
+        if not risks:
+            return f"Nothing expires in the next {EXPIRY_WARN_DAYS} days."
+        lines = ["Expiring soon (earliest first):"]
+        for r in risks[:5]:
+            lines.append(f"- {r['name']}: {r['stock']:g} {r['unit']} left, "
+                         f"expires {r['expiry']} ({r['days_left']} days) — "
+                         f"about {r['predicted_unsold']:g} may stay unsold. "
+                         f"{r['suggested_action']}.")
+        return "\n".join(lines)
+    if intent == "forecast":
+        if name:
+            p = _product_named(db, name)
+            if not p:
+                return None
+            f = forecast_demand(db, p["id"], as_of=as_of)
+            if not f:
+                return (f"{name} hasn't sold in the last "
+                        f"{FORECAST_WINDOW_DAYS} days, so there is no "
+                        "sales history to forecast from.")
+            return (f"{name} sells about {f['daily_rate']} {f['unit']} "
+                    f"a day — expect about {f['forecast_qty']} in the "
+                    f"next {FORECAST_HORIZON_DAYS} days. Stock is "
+                    f"{f['stock']:g}, about {f['days_of_stock']} days' "
+                    "worth.")
+        rows = forecast_all(db, as_of=as_of)
+        if not rows:
+            return (f"No sales in the last {FORECAST_WINDOW_DAYS} days, "
+                    "so there is nothing to forecast yet.")
+        lines = [f"Top sellers — expected sales in the next "
+                 f"{FORECAST_HORIZON_DAYS} days:"]
+        for f in rows[:5]:
+            lines.append(f"- {f['name']}: about {f['forecast_qty']} "
+                         f"{f['unit']} (stock {f['stock']:g}, "
+                         f"~{f['days_of_stock']} days)")
+        return "\n".join(lines)
+    if intent == "order":
+        sug = reorder_suggestions(db, as_of=as_of)
+        if name:
+            sug = [s for s in sug if s["name"] == name]
+            if not sug:
+                return (f"{name} does not need ordering right now — "
+                        "stock covers forecast demand.")
+        if not sug:
+            return ("Nothing needs ordering right now — stock covers "
+                    "forecast demand.")
+        total = sum(s["est_amount"] for s in sug)
+        lines = [f"Order list (about Rs. {total:,.2f} at last purchase "
+                 "prices):"]
+        for s in sug[:5]:
+            lines.append(f"- {s['name']}: order {s['suggested_qty']:g} "
+                         f"{s['unit']} (stock {s['stock']:g}, "
+                         f"{s['urgency']})"
+                         + (f" — supplier {s['supplier']}"
+                            if s["supplier"] else ""))
+        if len(sug) > 5:
+            lines.append(f"...and {len(sug) - 5} more items — see the "
+                         "Reorder tab.")
+        return "\n".join(lines)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -1007,7 +1142,10 @@ def ai_screen_class():
                     cfg["local_model"]))
             return ("Assistant — ask in plain words. It explains the "
                     "numbers on the other tabs and drafts orders, "
-                    "reminders and summaries for review.\n\n"
+                    "reminders and summaries for review. Stock, dues, "
+                    "expiry, forecast and order questions are answered "
+                    "straight from your shop data — no AI download "
+                    "needed.\n\n"
                     f"Local AI: {cfg['local_model']} ({local}). "
                     "Cloud fallback: Gemini API"
                     f"({'key saved' if cfg['gemini_key'] else 'no key saved'}).\n"
