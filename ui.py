@@ -1,5 +1,5 @@
 """
-BillBook — ui.py
+Vyro — ui.py
 All CustomTkinter screens: dashboard, product catalog, stock, multi-tab billing,
 customer ledger, invoices, reports, backup/restore, settings.
 """
@@ -127,7 +127,7 @@ class App(ctk.CTk):
     def __init__(self, db):
         super().__init__()
         self.db = db
-        self.title("BillBook \u2014 Wholesale Billing")
+        self.title("Vyro \u2014 Wholesale Billing")
         self.geometry("1280x800")
         self.minsize(1080, 680)
 
@@ -136,7 +136,7 @@ class App(ctk.CTk):
 
         self.sidebar = ctk.CTkFrame(self, width=190, corner_radius=0)
         self.sidebar.grid(row=0, column=1, sticky="nsew")
-        ctk.CTkLabel(self.sidebar, text="BillBook",
+        ctk.CTkLabel(self.sidebar, text="Vyro",
                      font=ctk.CTkFont(size=24, weight="bold")).pack(
                          pady=(18, 2), padx=12)
         prof = db.shop_profile()
@@ -213,15 +213,15 @@ class App(ctk.CTk):
         if not sha:
             return
         if not messagebox.askyesno(
-                "Update BillBook",
-                "A new version of BillBook is available.\n\n"
+                "Update Vyro",
+                "A new version of Vyro is available.\n\n"
                 "The update downloads the latest version, rebuilds the app "
                 "(takes a few minutes) and restarts it automatically.\n"
                 "Your bills, products and backups are never touched.\n\n"
                 "Update now?"):
             return
         dlg = ctk.CTkToplevel(self)
-        dlg.title("Updating BillBook")
+        dlg.title("Updating Vyro")
         dlg.geometry("380x140")
         dlg.transient(self)
         dlg.grab_set()
@@ -260,7 +260,7 @@ class App(ctk.CTk):
             pass
         messagebox.showinfo(
             "Update",
-            "Download complete.\n\nBillBook will now close, apply the update "
+            "Download complete.\n\nVyro will now close, apply the update "
             "and restart itself.")
         updater.launch_apply_and_quit(bat, os.getpid(), sha, self.on_close)
 
@@ -2392,7 +2392,7 @@ class CustomersFrame(ctk.CTkFrame):
         path = filedialog.asksaveasfilename(
             defaultextension=".csv", filetypes=[("CSV files", "*.csv")],
             title="Export outstanding to CSV",
-            initialfile="billbook_outstanding.csv")
+            initialfile="vyro_outstanding.csv")
         if not path:
             return
         try:
@@ -2864,7 +2864,7 @@ class ReportsFrame(ctk.CTkFrame):
         path = filedialog.asksaveasfilename(
             defaultextension=".csv", filetypes=[("CSV files", "*.csv")],
             title="Export report to CSV",
-            initialfile=f"billbook_report_{start}_to_{end}.csv")
+            initialfile=f"vyro_report_{start}_to_{end}.csv")
         if not path:
             return
         try:
@@ -3015,7 +3015,7 @@ class SettingsFrame(ctk.CTkFrame):
                      font=ctk.CTkFont(size=15, weight="bold")).pack(
                          anchor="w", pady=(12, 6))
         ctk.CTkLabel(scroll,
-                     text="BillBook checks GitHub for updates when it starts. "
+                     text="Vyro checks GitHub for updates when it starts. "
                           "You can also check right now:",
                      text_color="gray", wraplength=560,
                      justify="left").pack(anchor="w", padx=4)
@@ -3043,7 +3043,7 @@ class SettingsFrame(ctk.CTkFrame):
             self.app._on_update_checked("available", sha)
             if messagebox.askyesno(
                     "Update available",
-                    "A new version of BillBook is available.\n\n"
+                    "A new version of Vyro is available.\n\n"
                     "Update now? (Takes a few minutes; your data is safe.)"):
                 self.app._on_update_clicked()
         elif status == "offline":

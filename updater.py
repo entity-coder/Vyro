@@ -1,6 +1,6 @@
-"""BillBook - self-update from GitHub.
+"""Vyro - self-update from GitHub.
 
-Checks the latest commit on main of entity-coder/billbook (public repo, no
+Checks the latest commit on main of entity-coder/vyro (public repo, no
 auth), downloads the source ZIP on user approval, and applies it through a
 batch script that runs AFTER the app exits - Windows cannot overwrite a
 running .exe. User data (billbook_data/) is never touched.
@@ -15,12 +15,12 @@ import urllib.request
 from pathlib import Path
 from zipfile import ZipFile
 
-REPO = "entity-coder/billbook"
+REPO = "entity-coder/vyro"
 BRANCH = "main"
 API_COMMIT_URL = "https://api.github.com/repos/%s/commits/%s" % (REPO, BRANCH)
 ZIP_URL_TMPL = "https://github.com/%s/archive/{sha}.zip" % REPO
 TIMEOUT = 12
-USER_AGENT = "BillBook-updater"
+USER_AGENT = "Vyro-updater"
 
 
 def app_dir() -> Path:

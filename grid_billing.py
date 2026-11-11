@@ -1,4 +1,4 @@
-"""BillBook - grid_billing.py
+"""Vyro - grid_billing.py
 Marg-ERP-style sale-entry product grid for the Billing screen.
 
 Columns: DESCRIPTION | PACKING | STOCK | UNIT | RATE, a "Find Name ? >>"

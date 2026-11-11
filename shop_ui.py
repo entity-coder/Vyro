@@ -1,5 +1,5 @@
 """
-BillBook — shop_ui.py
+Vyro — shop_ui.py
 Marg-ERP parity screens: Cash Book (day book), Delivery Challans,
 Supplier ledger (creditor payments), Outstanding Aging report,
 Re-Order list (low-stock purchase planning).

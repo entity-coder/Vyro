@@ -1,5 +1,5 @@
 """
-BillBook — print_ui.py
+Vyro — print_ui.py
 Print offer dialog, print settings dialog, invoice live preview,
 and the accent palette. Extracted from ui.py so the main UI module
 stays under the push size limit.

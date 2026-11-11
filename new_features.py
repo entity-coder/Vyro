@@ -1,5 +1,5 @@
 """
-BillBook — new features (round 13).
+Vyro — new features (round 13).
 
 Pure functions first (no GUI imports, so they can be tested headless);
 CustomTkinter dialogs at the bottom, imported lazily by ui.py.
@@ -160,7 +160,7 @@ def export_reports_csv(db, start, end, path):
     profit = db.estimated_profit(start, end)
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["BillBook report", f"{start} to {end}"])
+        w.writerow(["Vyro report", f"{start} to {end}"])
         w.writerow([])
         w.writerow(["Summary"])
         w.writerow(["Bills", s["n"]])
@@ -219,7 +219,7 @@ def export_reports_csv(db, start, end, path):
 def outstanding_reminder_message(shop_name, customer_name, balance):
     """Polite, copy-ready reminder text. No phone number is used here;
     the caller decides how to send it."""
-    shop = shop_name or "BillBook"
+    shop = shop_name or "Vyro"
     return (f"Hello {customer_name}, this is {shop}. "
             f"Your outstanding balance is Rs. {float(balance):.2f}. "
             f"Kindly pay at your convenience. Thank you!")

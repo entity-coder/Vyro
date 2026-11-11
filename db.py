@@ -1,5 +1,5 @@
 """
-BillBook — wholesale billing app
+Vyro — wholesale billing app
 db.py — SQLite storage layer (stdlib sqlite3 only)
 
 Tables:

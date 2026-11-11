@@ -1,5 +1,5 @@
 """
-BillBook — purchases_ui.py
+Vyro — purchases_ui.py
 Purchases screen: record stock bought from suppliers (stock in).
 """
 

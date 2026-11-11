@@ -1,5 +1,5 @@
 """
-BillBook — wholesale billing app for a small Indian wholesale shop.
+Vyro — AI-powered billing and shop management app for a small Indian wholesale shop.
 
 Run:  python main.py
 """

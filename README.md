@@ -1,4 +1,4 @@
-# BillBook — Wholesale Billing App
+# Vyro — AI-Powered Billing & Shop Management App
 
 A desktop billing application for a small Indian wholesale shop: fast counter
 billing with a saved product catalog, GST invoices you can print, customer
@@ -221,7 +221,7 @@ no Chrome extension needed.
 - **Backup/restore** — one-click backup writes a timestamped `.zip`
   (`billbook_backup_YYYYMMDD_HHMMSS.zip`) with the database, all saved
   invoice PDFs and the shop logo to any folder you pick (pen drive / Drive).
-  Restore accepts a `.zip` or a legacy `.db`, validates it is a BillBook
+  Restore accepts a `.zip` or a legacy `.db`, validates it is a Vyro
   database, and always saves a safety copy of the current data first
   (`billbook_data/backups/auto_before_restore_…db`) — then asks you to
   restart the app.
@@ -234,7 +234,7 @@ no Chrome extension needed.
   last **14** automatic backups are kept — older ones are deleted, manual
   backups are never touched.
 - **Self-update from GitHub** — on startup the app quietly checks the
-  public `entity-coder/billbook` repo for a newer commit (background
+  public `entity-coder/vyro` repo for a newer commit (background
   thread; offline or failure = silently skipped, the app runs normally).
   If an update exists, a small non-intrusive **"⬆ Update available"**
   button appears in the sidebar — never forced, never interrupts billing.
@@ -380,7 +380,7 @@ On Linux:
 ```bash
 docker compose build
 xhost +local:docker      # allow the container to use your display (per session)
-docker compose up        # launches BillBook in a window
+docker compose up        # launches Vyro in a window
 ```
 
 Data (SQLite db + invoice PDFs) lives in the `billbook_data` Docker volume,
@@ -450,7 +450,7 @@ billbook_data`. After code changes, rebuild with `docker compose build`.
 
 ## Interview notes
 
-**What is this project?** BillBook is an offline-first desktop billing app
+**What is this project?** Vyro is an offline-first desktop billing app
 for a wholesale shop: product catalog, fast multi-tab billing with GST,
 customer khata, stock management, printable GST invoices, reports, and
 one-click backup — packaged as a single Windows `.exe` so a non-technical
@@ -669,7 +669,7 @@ bank account is modelled. (2) *Outstanding aging* — a new **Aging** screen
 with the classic 1–30 … 241+ day buckets for customers and suppliers; ages
 come from the originating bill's date and **payments settle the oldest
 bills first (FIFO)**, implemented in `DB._allocate_fifo` — this is an
-assumption, not a ledger link: BillBook doesn't tie individual payments to
+assumption, not a ledger link: Vyro doesn't tie individual payments to
 specific bills, so FIFO is the documented convention. (3) *Item master* —
 `mrp` and `company` columns added via guarded `ALTER TABLE` in `_migrate`
 (the same pattern `payments.mode` used), wired into the product dialog,

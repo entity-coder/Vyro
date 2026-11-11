@@ -1,5 +1,5 @@
 """
-BillBook — returns_ui.py
+Vyro — returns_ui.py
 Sales returns (credit notes) + WhatsApp bill sharing.
 """
 
@@ -204,7 +204,7 @@ def build_bill_message(db, bill_id):
     """Plain-text bill summary for WhatsApp. Returns (message, phone)."""
     bill = db.get_bill(bill_id)
     items = db.bill_items(bill_id)
-    shop = db.shop_profile()["shop_name"] or "BillBook Shop"
+    shop = db.shop_profile()["shop_name"] or "Vyro Shop"
     lines = [
         f"*{shop}*",
         f"Bill {bill['bill_no']}  \u00b7  {bill['date']}",

@@ -1,4 +1,4 @@
-# BillBook — wholesale billing desktop app (CustomTkinter + SQLite)
+# Vyro — wholesale billing desktop app (CustomTkinter + SQLite)
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

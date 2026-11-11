@@ -1,5 +1,5 @@
 """
-BillBook — AI features (buildathon set, 2026-11-10).
+Vyro — AI features (buildathon set, 2026-11-10).
 
 Pure functions first (no GUI imports, so they can be tested headless);
 the AI Insights screen is built by ai_screen_class() at the bottom and
@@ -37,7 +37,7 @@ What lives here, in build order:
   6. Dead-stock prediction, price/margin suggestions, customer
      insights (regulars who stopped coming).
   7. Voice assistant — typed commands are parsed by parse_command
-     and the common ones (stock, dues, expiry, forecast, order) are
+     and the common ones (stock, outstanding, expiry, forecast, order) are
      answered straight from the shop's own data by answer_from_data,
      with no AI model installed. Anything else goes to the LLM.
      Voice input itself needs a microphone and a speech-to-text
@@ -502,7 +502,7 @@ REMINDER_TEMPLATES = {
 def reminder_message(shop_name, customer_name, balance, lang="en"):
     """Personalised reminder text in English, Hindi or Marathi.
     Unknown language codes fall back to English."""
-    shop = shop_name or "BillBook"
+    shop = shop_name or "Vyro"
     template = REMINDER_TEMPLATES.get(lang) or REMINDER_TEMPLATES["en"]
     return template.format(name=customer_name, shop=shop,
                            balance=float(balance))
@@ -1142,7 +1142,7 @@ def ai_screen_class():
                     cfg["local_model"]))
             return ("Assistant — ask in plain words. It explains the "
                     "numbers on the other tabs and drafts orders, "
-                    "reminders and summaries for review. Stock, dues, "
+                    "reminders and summaries for review. Stock, outstanding, "
                     "expiry, forecast and order questions are answered "
                     "straight from your shop data — no AI download "
                     "needed.\n\n"
@@ -1152,7 +1152,7 @@ def ai_screen_class():
                     f"Voice: {why if not ok else 'available'}\n\n"
                     "Try: 'what should I order this week?' or "
                     "'which customers owe the most?'\n\n"
-                    f"Tip: tap '{label}' below and BillBook installs "
+                    f"Tip: tap '{label}' below and Vyro installs "
                     "it for you. "
                     f"{local_ai_setup.manual_steps_text(cfg['local_model'])}")
 

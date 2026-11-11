@@ -1,4 +1,4 @@
-"""BillBook - backup.py
+"""Vyro - backup.py
 Database backup / restore: manual one-click backups, automatic backup on
 app exit, and the Backup & restore screen.
 """
@@ -185,7 +185,7 @@ class BackupFrame(ctk.CTkFrame):
 
     def restore(self):
         path = filedialog.askopenfilename(
-            filetypes=[("BillBook backup", "*.zip"), ("SQLite DB", "*.db")],
+            filetypes=[("Vyro backup", "*.zip"), ("SQLite DB", "*.db")],
             title="Choose backup file")
         if not path:
             return
@@ -237,7 +237,7 @@ class BackupFrame(ctk.CTkFrame):
                 "SELECT name FROM sqlite_master WHERE type='table'")}
             probe.close()
             if not {"products", "bills", "customers"} <= tables:
-                raise ValueError("This file is not a BillBook backup.")
+                raise ValueError("This file is not a Vyro backup.")
             self.db.close()
             shutil.copy2(db_src, self.db.path)
         except Exception as e:  # noqa: BLE001
@@ -251,6 +251,6 @@ class BackupFrame(ctk.CTkFrame):
                 shutil.rmtree(tmp, ignore_errors=True)
         messagebox.showinfo("Restore",
                             "Backup restored. Please close and reopen "
-                            "BillBook to continue with the restored data.")
+                            "Vyro to continue with the restored data.")
 
 

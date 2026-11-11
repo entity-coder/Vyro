@@ -1,5 +1,5 @@
 """
-BillBook — one-click local AI download (Ollama + Qwen3-4B, 2026-11-10).
+Vyro — one-click local AI download (Ollama + Qwen3-4B, 2026-11-10).
 
 Pure logic, no GUI imports, so it can be tested headless. The AI
 Insights Assistant tab (ai_features.py) calls run_setup() in a
@@ -139,12 +139,12 @@ def button_label(state):
 def confirm_text(state, model=OLLAMA_MODEL):
     """Plain confirmation shown before anything downloads."""
     if state == "ready":
-        return (f"Update local AI?\n\nBillBook will re-download "
+        return (f"Update local AI?\n\nVyro will re-download "
                 f"'{model}' to get the latest version "
                 f"(about 2.5 GB if a new version is available — quick "
                 f"if you already have it). Needs internet. The assistant "
                 f"keeps working while it downloads.")
-    return (f"Download local AI?\n\nBillBook will download and install:\n"
+    return (f"Download local AI?\n\nVyro will download and install:\n"
             f"- Ollama (about 300 MB) — runs the AI on this PC\n"
             f"- The '{model}' model (about 2.5 GB)\n\n"
             f"About 3 GB in total. Needs internet and a few minutes on "
