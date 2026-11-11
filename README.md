@@ -18,6 +18,22 @@ no Chrome extension needed.
 
 ## Features
 
+- **Retail offers (round 25, Nov 2026)** — supermarket-style counter
+  billing in a new **Retail Offers** screen (`retail_billing.py`):
+  quantity slabs (discount % or a special rate at a qty), buy-X-get-Y-free
+  (free units appear as ₹0 lines and still decrement stock), bundles
+  (component lines with the discount spread so the total equals the bundle
+  price), party-wise rates per wholesale customer, per-customer discount %,
+  per-customer credit limits (Credit bills that would cross the limit are
+  blocked; Cash/UPI/Card are unaffected), loyalty points (1 point per
+  ₹100 spent by default, redeemable for ₹ off, lookup by phone), split
+  payment (one bill across Cash/UPI/Card, recorded per mode), and card
+  charges (configurable %, added as a visible "Card charges" line — Vyro
+  records how a bill was paid, it never processes payments). Focus items
+  (slow stock) and most-sold items appear as a one-tap suggestion strip on
+  the billing screen. Every offer is visible in the live bill totals before
+  the bill is saved — nothing is added silently at save time. A line the
+  operator edits by hand keeps the operator's price/discount.
 - **Reports (round 17, Nov 2026)** — Marg-ERP-style names for the Reports
   functions and tabs, no behaviour changed: the invoice search is now the
   **Sale Register**, and the Reports tabs are **Month-wise sales**,
@@ -46,7 +62,7 @@ no Chrome extension needed.
   customer's bill, serve the next, switch tabs freely. Each tab keeps its own
   customer, items, and totals until finalized or discarded.
   - Customer (required — pick from saved customers or create new) and payment
-    type (**Cash / UPI / Credit**, required) are chosen first.
+    type (**Cash / UPI / Card / Credit / Split**, required) are chosen first.
   - Search-as-you-type product picker, quantity, per-line discount, per-bill
     discount.
   - **Wholesale/Retail toggle** — wholesale price or retail price is applied
@@ -396,6 +412,9 @@ billbook_data`. After code changes, rebuild with `docker compose build`.
 | `invoices.py` | Invoice generation as **PDF** (reportlab, A4 + 80mm thermal) + print orchestration: builds the PDF per bill, saves it under `billbook_data/invoices/` |
 | `printing.py` | Universal print engine: PDF rendering, printer enumeration (`win32print` on Windows), direct OS printing via `os.startfile(path, "print")`, graceful PDF-only fallback elsewhere |
 | `ui.py` | Core screens: dashboard, billing (multi-tab), products, stock, customers, invoices, reports, invoice design, backup, settings |
+| `retail_billing.py` | Retail counter offers (Round 25): quantity slabs, buy-X-get-Y-free, bundles, party-wise rates, per-customer discounts, credit limits, loyalty points, split payment, card charges, focus/most-sold suggestions + the Retail Offers screen; live-offer application on the billing tab |
+| `pickers.py` | Shared search-picker dialog (split out of `ui.py` to keep modules small) |
+| `ui_helpers.py` | Tiny shared UI helpers — money formatting, dates, entry parsing, treeview builder (split out of `ui.py` to keep modules small) |
 | `print_ui.py` | Print offer dialog, print settings dialog, invoice live preview, accent palette (split out of `ui.py` to keep modules small) |
 | `purchases_ui.py` | Purchases screen: supplier picker, purchase entry, purchase history |
 | `returns_ui.py` | Sales-return dialog (credit notes) + WhatsApp bill sharing |
@@ -417,6 +436,14 @@ billbook_data`. After code changes, rebuild with `docker compose build`.
 - **Credit** bills add the grand total to the customer's khata balance;
   recording a payment reduces it; a credit note (sales return) on a credit
   bill reduces it too. Outstanding = credit bills − payments − credit notes.
+- **Counter offers** (Round 25) apply to the live bill before it is saved:
+  party rates and quantity slabs rewrite a line's price/discount unless the
+  operator edited that line by hand; free units and card charges are rebuilt
+  on every totals refresh, so they never duplicate or go stale. The
+  per-customer discount % and any loyalty redemption are a separate offer
+  discount added to the manual bill discount. A **Split** bill stores one
+  row per payment mode, and the parts always add up to the rounded payable
+  (card charges included).
 - **Purchases** increase stock and re-price inventory to the weighted
   average of old stock and the new lot; deleting a purchase reverses the
   stock (the averaged cost is left as-is).

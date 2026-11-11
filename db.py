@@ -73,7 +73,8 @@ CREATE TABLE IF NOT EXISTS bills (
     bill_no      TEXT NOT NULL UNIQUE,
     date         TEXT NOT NULL,              -- YYYY-MM-DD
     customer_id  INTEGER,
-    payment_type TEXT NOT NULL DEFAULT 'Cash',   -- Cash / UPI / Credit
+    payment_type TEXT NOT NULL DEFAULT 'Cash',   -- Cash / UPI / Card /
+                                                   -- Credit / Split
     subtotal     REAL NOT NULL DEFAULT 0,     -- pre-GST after line discounts
     discount     REAL NOT NULL DEFAULT 0,     -- flat bill-level discount (post-GST)
     gst_total    REAL NOT NULL DEFAULT 0,
@@ -280,6 +281,10 @@ DEFAULT_SETTINGS = {
     "credit_note_counter": "1",
     # Delivery challan numbering
     "challan_counter": "1",
+    # Retail counter offers (Round 25)
+    "loyalty_points_per_100": "1",   # points earned per Rs. 100 spent
+    "loyalty_point_value_rs": "1",    # Rs. off per point redeemed
+    "card_charge_percent": "2",       # % added on card payments
     # Cash book opening balance (cash in hand at day zero)
     "cash_opening_balance": "0",
     # Theme
@@ -331,6 +336,18 @@ class DB:
                 self.conn.execute(
                     "ALTER TABLE purchase_items ADD COLUMN expiry_date TEXT "
                     "DEFAULT ''")
+            # Round 25: per-customer discount % and credit limit.
+            ccols = [r["name"] for r in
+                     self.conn.execute("PRAGMA table_info(customers)"
+                                       ).fetchall()]
+            if "credit_limit" not in ccols:
+                self.conn.execute(
+                    "ALTER TABLE customers ADD COLUMN credit_limit REAL "
+                    "NOT NULL DEFAULT 0")
+            if "discount_percent" not in ccols:
+                self.conn.execute(
+                    "ALTER TABLE customers ADD COLUMN discount_percent REAL "
+                    "NOT NULL DEFAULT 0")
             # 2026-10-18: 80mm thermal is the default paper size now; flip
             # dbs still on the old seeded "A4" default, once. A user who
             # later switches back to A4 in Invoice Design keeps their choice.
@@ -557,7 +574,8 @@ class DB:
         return cur.lastrowid
 
     def update_customer(self, cid, **kw):
-        allowed = ("name", "phone", "address", "is_wholesale")
+        allowed = ("name", "phone", "address", "is_wholesale",
+                   "credit_limit", "discount_percent")
         sets = [f"{c}=?" for c in allowed if c in kw]
         if sets:
             self.conn.execute(

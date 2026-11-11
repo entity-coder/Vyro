@@ -421,3 +421,23 @@ class PrintDialog(ctk.CTkToplevel):
                     self._print_failed_dialog(path, msg)
         except Exception as e:
             messagebox.showerror("Print", f"Could not print: {e}")
+
+
+# Sample bill + items for the invoice-design live preview.
+# Moved here from ui.py (Round 25) to keep ui.py under the push
+# size limit; the preview in InvoiceDesignFrame uses these.
+DESIGN_SAMPLE_BILL = {
+    "bill_no": "BB-0001", "date": "16-10-2026",
+    "customer_name": "Sample Customer", "customer_phone": "98765 43210",
+    "customer_address": "Main Bazaar, Chikhli",
+    "payment_type": "Credit", "subtotal": 4350.00, "discount": 100.00,
+    "gst_total": 212.50, "round_off": 0.50, "grand_total": 4463.00,
+}
+DESIGN_SAMPLE_ITEMS = [
+    {"name": "Wheat Flour 5kg", "sku": "WF5", "qty": 10, "unit": "bag",
+     "price": 240.00, "line_discount": 100.00, "gst_percent": 5},
+    {"name": "Sugar 1kg", "sku": "SG1", "qty": 20, "unit": "kg",
+     "price": 45.00, "line_discount": 0, "gst_percent": 5},
+    {"name": "Basmati Rice 25kg", "sku": "BR25", "qty": 2, "unit": "bag",
+     "price": 1450.00, "line_discount": 0, "gst_percent": 0},
+]

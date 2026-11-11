@@ -15,91 +15,20 @@ from pathlib import Path
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
-from tkinter import ttk
 
 import invoices
 import printing
 import grid_billing
+import retail_billing as rb
 from backup import BackupFrame, auto_backup_on_exit
 from db import data_dir
-from print_ui import ACCENTS, PrintDialog, PrintOfferDialog, render_invoice_preview
+from print_ui import (ACCENTS, DESIGN_SAMPLE_BILL, DESIGN_SAMPLE_ITEMS,
+                      PrintDialog, PrintOfferDialog, render_invoice_preview)
 
-RUPEE = "\u20b9"
-
-
-def money(n):
-    try:
-        return f"{RUPEE}{float(n):,.2f}"
-    except (TypeError, ValueError):
-        return f"{RUPEE}0.00"
+from ui_helpers import fnum, money, today_iso, tree
 
 
-def today_iso():
-    return date.today().isoformat()
-
-
-def fnum(widget, default=0.0):
-    try:
-        return float(widget.get().strip() or default)
-    except ValueError:
-        return default
-
-
-def tree(parent, columns, widths=None, height=12):
-    frame = ctk.CTkFrame(parent)
-    tv = ttk.Treeview(frame, columns=columns, show="headings", height=height)
-    for i, c in enumerate(columns):
-        tv.heading(c, text=c)
-        tv.column(c, width=(widths[i] if widths else 110), anchor="w")
-    vsb = ttk.Scrollbar(frame, orient="vertical", command=tv.yview)
-    tv.configure(yscrollcommand=vsb.set)
-    tv.pack(side="left", fill="both", expand=True)
-    vsb.pack(side="right", fill="y")
-    return frame, tv
-
-
-class SearchPicker(ctk.CTkToplevel):
-
-    def __init__(self, master, title, fetch_fn, display_fn, on_pick):
-        super().__init__(master)
-        self.title(title)
-        self.geometry("460x420")
-        self.fetch_fn = fetch_fn
-        self.display_fn = display_fn
-        self.on_pick = on_pick
-        self.transient(master)
-        self.grab_set()
-
-        self.entry = ctk.CTkEntry(self, placeholder_text="Type to search...")
-        self.entry.pack(fill="x", padx=12, pady=(12, 6))
-        self.entry.bind("<KeyRelease>", lambda e: self.refresh())
-        self.entry.bind("<Return>", lambda e: self.choose())
-        self.listbox = ctk.CTkScrollableFrame(self)
-        self.listbox.pack(fill="both", expand=True, padx=12, pady=(0, 12))
-        self.entry.focus()
-        self.refresh()
-        self.bind("<Escape>", lambda e: self.destroy())
-
-    def refresh(self):
-        q = self.entry.get().strip()
-        for w in self.listbox.winfo_children():
-            w.destroy()
-        for row in self.fetch_fn(q)[:60]:
-            b = ctk.CTkButton(self.listbox, text=self.display_fn(row),
-                              anchor="w", fg_color="transparent",
-                              text_color=("black", "white"),
-                              hover_color=("gray75", "gray25"),
-                              command=lambda r=row: self.pick(r))
-            b.pack(fill="x", pady=1)
-
-    def pick(self, row):
-        self.destroy()
-        self.on_pick(row)
-
-    def choose(self):
-        rows = self.fetch_fn(self.entry.get().strip())[:1]
-        if rows:
-            self.pick(rows[0])
+from pickers import SearchPicker  # re-exported: purchases_ui/shop_ui import it from ui
 
 
 NAV = [
@@ -110,6 +39,7 @@ NAV = [
     ("Stock", "stock"),
     ("Re-Order", "reorder"),
     ("AI Insights", "ai"),
+    ("Retail Offers", "retail"),
     ("Customers", "customers"),
     ("Suppliers", "suppliers"),
     ("Cash Book", "cashbook"),
@@ -298,6 +228,8 @@ class App(ctk.CTk):
         elif key == "ai":
             from ai_features import ai_screen_class
             screen_cls = ai_screen_class()
+        elif key == "retail":
+            screen_cls = rb.retail_screen_class()
         else:
             screen_cls = {"dashboard": DashboardFrame, "billing": BillingFrame,
                           "products": ProductsFrame, "stock": StockFrame,
@@ -810,9 +742,12 @@ class BillTab:
         self.price_mode = "wholesale"
         self.items = []              # dicts: product_id,name,unit,qty,price,
         self.bill_discount = 0.0
+        self.offer = {"discount": 0.0, "notes": [], "redeem_rs": 0.0,
+                      "redeem_points": 0}
 
     def totals(self, db):
-        return db.compute_totals(self.items, self.bill_discount)
+        return db.compute_totals(
+            self.items, self.bill_discount + self.offer["discount"])
 
 
 class BillingFrame(ctk.CTkFrame):
@@ -1222,7 +1157,7 @@ class BillingFrame(ctk.CTkFrame):
 
         ctk.CTkLabel(r1, text="Payment *").pack(side="left", padx=(10, 2))
         pay_var = ctk.StringVar(value=tab.payment_type)
-        for pt in ("Cash", "UPI", "Credit"):
+        for pt in ("Cash", "UPI", "Card", "Credit", "Split"):
             ctk.CTkRadioButton(r1, text=pt, variable=pay_var, value=pt,
                                command=lambda: self._on_pay_change(tab, pay_var, w)
                                ).pack(side="left", padx=4)
@@ -1411,6 +1346,7 @@ class BillingFrame(ctk.CTkFrame):
         w["mode_var"].set("Wholesale" if tab.price_mode == "wholesale"
                           else "Retail")
         self._refresh_customer_btn(tab, w)
+        self._refresh_totals(tab.name)
         w["prod_e"].focus_set()
 
     def _refresh_customer_btn(self, tab, w):
@@ -1424,6 +1360,7 @@ class BillingFrame(ctk.CTkFrame):
 
     def _on_pay_change(self, tab, pay_var, w):
         tab.payment_type = pay_var.get()
+        self._refresh_totals(tab.name)
 
     def _on_mode_change(self, tab, value):
         tab.price_mode = value.lower()
@@ -1518,7 +1455,7 @@ class BillingFrame(ctk.CTkFrame):
                 "product_id": p["id"], "name": p["name"], "unit": p["unit"],
                 "qty": qty, "price": price,
                 "line_discount": line_disc, "gst_percent": p["gst_percent"],
-                "sku": p["sku"]})
+                "sku": p["sku"], "base_price": price})
             merged_idx = len(tab.items) - 1
         w["prod_e"].delete(0, "end")
         w["qty_e"].delete(0, "end")
@@ -1741,6 +1678,7 @@ class BillingFrame(ctk.CTkFrame):
                 or disc != it["line_discount"]):
             it["qty"], it["price"], it["line_discount"] = qty, price, disc
             w["card_sel"] = idx
+            rb.refresh_offers(self.db, tab)
             self._refresh_card_line(tab, w, idx)
             self._update_totals_footer(tab, w)
 
@@ -1837,6 +1775,11 @@ class BillingFrame(ctk.CTkFrame):
         if name not in self.tabs:
             return
         tab, w = self.tabs[name]
+        try:
+            rb.refresh_offers(self.db, tab)
+            rb.refresh_suggestion_strip(self, tab, w)
+        except Exception:
+            pass
         self._render_cards(tab, w, flash_idx)
         self._update_totals_footer(tab, w)
         grid_billing.refresh_last_bills(self, w)
@@ -1847,11 +1790,13 @@ class BillingFrame(ctk.CTkFrame):
         except Exception:
             return
         try:
+            notes = tab.offer.get("notes", [])
             w["tot_lbl"].configure(
                 text=f"Subtotal  {money(t['subtotal'])}      "
                      f"Bill disc.  {money(t['discount'])}      "
                      f"Round-off  {money(t['round_off'])}\n"
-                     f"GST  {money(t['gst_total'])}")
+                     f"GST  {money(t['gst_total'])}"
+                     + (f"\nOffers: {'; '.join(notes)}" if notes else ""))
             w["grand_lbl"].configure(text=f"Total  {money(t['grand_total'])}")
             problems = []
             if not tab.customer:
@@ -1873,7 +1818,20 @@ class BillingFrame(ctk.CTkFrame):
             return False
         if not tab.payment_type:
             messagebox.showerror("Billing",
-                                 "Choose a payment type (Cash / UPI / Credit).")
+                                 "Choose a payment type (Cash / UPI / Card / "
+                                 "Credit / Split).")
+            return False
+        if tab.payment_type == "Split" and tab.edit_bill_id:
+            messagebox.showerror(
+                "Billing",
+                "Split payment is for new bills — pick one payment mode "
+                "when editing a saved bill.")
+            return False
+        err = rb.credit_limit_blocked(
+            self.db, tab.customer, tab.payment_type,
+            tab.totals(self.db)["grand_total"], tab.edit_bill_id)
+        if err:
+            messagebox.showerror("Billing", err)
             return False
         from ai_features import billing_blocked_lines
         blocked = billing_blocked_lines(self.db, tab.items)
@@ -1891,24 +1849,46 @@ class BillingFrame(ctk.CTkFrame):
         tab, w = cur
         if not self._validate(tab):
             return
+        if tab.payment_type == "Split" and not tab.edit_bill_id:
+            if not tab.offer.get("split_parts"):
+                rb.open_split_dialog(
+                    self.app, self.db, tab, self._on_split_chosen)
+                return
         if tab.edit_bill_id:
-            totals = self.db.update_bill(tab.edit_bill_id, tab.items,
-                                         tab.bill_discount)
+            totals = self.db.update_bill(
+                tab.edit_bill_id, tab.items,
+                tab.bill_discount + tab.offer["discount"])
             bill_id = tab.edit_bill_id
             bill = self.db.get_bill(bill_id)
             msg = (f"Bill {bill['bill_no']} updated \u2014 "
                    f"new total {money(totals['grand_total'])}.")
         else:
             cid = tab.customer["id"] if tab.customer else None
-            bill_id = self.db.create_bill(cid, tab.payment_type, tab.items,
-                                          tab.bill_discount)
+            if tab.payment_type == "Split":
+                bill_id = rb.complete_split_bill(
+                    self.db, tab, tab.offer["split_parts"],
+                    tab.offer["split_surcharge"])
+            else:
+                bill_id = self.db.create_bill(
+                    cid, tab.payment_type, tab.items,
+                    tab.bill_discount + tab.offer["discount"])
             bill = self.db.get_bill(bill_id)
+            if tab.payment_type != "Split":
+                # Split bills record loyalty inside complete_split_bill.
+                rb.record_loyalty_for_bill(
+                    self.db, bill_id, cid, bill["grand_total"],
+                    tab.offer["redeem_points"])
             msg = (f"Bill {bill['bill_no']} saved \u2014 "
                    f"{money(bill['grand_total'])}.")
         name = tab.name
         self.close_tab(name)
         self.offer_print_after_save(bill_id, msg)
         self.app.show("dashboard")
+
+    def _on_split_chosen(self, tab, parts, surcharge):
+        tab.offer["split_parts"] = parts
+        tab.offer["split_surcharge"] = surcharge
+        self.finalize_current()
 
     def offer_print_after_save(self, bill_id, msg):
         mode = self.db.get_setting("print_on_save", "ask")
@@ -2012,21 +1992,6 @@ class BillingFrame(ctk.CTkFrame):
             on_pick)
 
 
-DESIGN_SAMPLE_BILL = {
-    "bill_no": "BB-0001", "date": "16-10-2026",
-    "customer_name": "Sample Customer", "customer_phone": "98765 43210",
-    "customer_address": "Main Bazaar, Chikhli",
-    "payment_type": "Credit", "subtotal": 4350.00, "discount": 100.00,
-    "gst_total": 212.50, "round_off": 0.50, "grand_total": 4463.00,
-}
-DESIGN_SAMPLE_ITEMS = [
-    {"name": "Wheat Flour 5kg", "sku": "WF5", "qty": 10, "unit": "bag",
-     "price": 240.00, "line_discount": 100.00, "gst_percent": 5},
-    {"name": "Sugar 1kg", "sku": "SG1", "qty": 20, "unit": "kg",
-     "price": 45.00, "line_discount": 0, "gst_percent": 5},
-    {"name": "Basmati Rice 25kg", "sku": "BR25", "qty": 2, "unit": "bag",
-     "price": 1450.00, "line_discount": 0, "gst_percent": 0},
-]
 
 
 class InvoiceDesignFrame(ctk.CTkFrame):
