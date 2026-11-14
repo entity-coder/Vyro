@@ -235,6 +235,28 @@ CREATE TABLE IF NOT EXISTS supplier_payments (
     note        TEXT DEFAULT '',
     FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 );
+
+CREATE TABLE IF NOT EXISTS staff (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    name           TEXT NOT NULL,
+    role           TEXT DEFAULT '',          -- e.g. Salesman, Loader, Accountant
+    monthly_salary REAL NOT NULL DEFAULT 0,
+    pay_day        INTEGER NOT NULL DEFAULT 1,  -- day of month salary is due (1-28)
+    phone          TEXT DEFAULT '',
+    active         INTEGER NOT NULL DEFAULT 1,
+    created_at     TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS staff_payments (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    staff_id  INTEGER NOT NULL,
+    month     TEXT NOT NULL,              -- YYYY-MM the payment is for
+    amount    REAL NOT NULL,
+    date      TEXT NOT NULL,              -- YYYY-MM-DD actually paid
+    mode      TEXT DEFAULT 'Cash',        -- Cash / UPI / Bank
+    note      TEXT DEFAULT '',
+    FOREIGN KEY (staff_id) REFERENCES staff(id)
+);
 """
 
 DEFAULT_SETTINGS = {
@@ -1161,6 +1183,116 @@ class DB:
 
     def total_creditors(self):
         return sum(s["outstanding"] for s in self.suppliers_with_payables())
+
+    # -- staff pay (Round 26) -------------------------------------------------
+    # Monthly salaries: one staff row per employee, one payment row per
+    # (part-)payment. Payments are capped at the month's remaining salary,
+    # like supplier payments are capped at the outstanding payable.
+    def add_staff(self, name, role="", monthly_salary=0, pay_day=1, phone=""):
+        if not (name or "").strip():
+            raise ValueError("Staff name is required.")
+        sal = float(monthly_salary)
+        if sal < 0:
+            raise ValueError("Monthly salary cannot be negative.")
+        day = int(pay_day)
+        if not 1 <= day <= 28:
+            raise ValueError("Pay day must be 1-28.")
+        cur = self.conn.execute(
+            "INSERT INTO staff (name, role, monthly_salary, pay_day, phone,"
+            " active, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)",
+            (name.strip(), (role or "").strip(), sal, day, (phone or "").strip(),
+             datetime.now().strftime("%Y-%m-%d %H:%M")))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def list_staff(self, active_only=True):
+        sql = "SELECT * FROM staff"
+        if active_only:
+            sql += " WHERE active=1"
+        return self._rows(sql + " ORDER BY name")
+
+    def get_staff(self, sid):
+        return self._one("SELECT * FROM staff WHERE id=?", (sid,))
+
+    def update_staff(self, sid, name, role, monthly_salary, pay_day, phone):
+        if not (name or "").strip():
+            raise ValueError("Staff name is required.")
+        sal = float(monthly_salary)
+        if sal < 0:
+            raise ValueError("Monthly salary cannot be negative.")
+        day = int(pay_day)
+        if not 1 <= day <= 28:
+            raise ValueError("Pay day must be 1-28.")
+        self.conn.execute(
+            "UPDATE staff SET name=?, role=?, monthly_salary=?, pay_day=?,"
+            " phone=? WHERE id=?",
+            (name.strip(), (role or "").strip(), sal, day,
+             (phone or "").strip(), sid))
+        self.conn.commit()
+
+    def set_staff_active(self, sid, active):
+        self.conn.execute("UPDATE staff SET active=? WHERE id=?",
+                          (1 if active else 0, sid))
+        self.conn.commit()
+
+    @staticmethod
+    def _check_month(month):
+        """Validate a YYYY-MM month string; returns it unchanged."""
+        m = (month or "").strip()
+        if len(m) != 7 or m[4] != "-" or not m[:4].isdigit() \
+                or not m[5:].isdigit() or not 1 <= int(m[5:]) <= 12:
+            raise ValueError("Month must be YYYY-MM (e.g. 2026-11).")
+        return m
+
+    def staff_paid_for_month(self, staff_id, month):
+        row = self._one(
+            "SELECT COALESCE(SUM(amount), 0) t FROM staff_payments"
+            " WHERE staff_id=? AND month=?",
+            (staff_id, self._check_month(month)))
+        return float(row["t"])
+
+    def staff_payments(self, staff_id, month=None, limit=100):
+        if month:
+            return self._rows(
+                "SELECT * FROM staff_payments WHERE staff_id=? AND month=?"
+                " ORDER BY id DESC LIMIT ?",
+                (staff_id, self._check_month(month), limit))
+        return self._rows(
+            "SELECT * FROM staff_payments WHERE staff_id=?"
+            " ORDER BY id DESC LIMIT ?", (staff_id, limit))
+
+    def record_staff_payment(self, staff_id, month, amount,
+                             date_str=None, mode="Cash", note=""):
+        """Record a (part-)payment of one month's salary. Capped at what is
+        still due for that month, so a salary can never be overpaid."""
+        staff = self.get_staff(staff_id)
+        if not staff:
+            raise ValueError("Unknown staff member.")
+        if not staff["active"]:
+            raise ValueError("Staff member is inactive.")
+        month = self._check_month(month)
+        amt = float(amount)
+        if amt <= 0:
+            raise ValueError("Amount must be greater than 0.")
+        remaining = float(staff["monthly_salary"]) \
+            - self.staff_paid_for_month(staff_id, month)
+        if amt - remaining > 0.004:
+            raise ValueError(
+                f"Amount exceeds remaining salary for {month}"
+                f" ({remaining:,.2f}).")
+        cur = self.conn.execute(
+            "INSERT INTO staff_payments (staff_id, month, amount, date,"
+            " mode, note) VALUES (?, ?, ?, ?, ?, ?)",
+            (staff_id, month, amt,
+             (date_str or "").strip() or date.today().isoformat(),
+             mode or "Cash", note or ""))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def delete_staff_payment(self, payment_id):
+        self.conn.execute("DELETE FROM staff_payments WHERE id=?",
+                          (payment_id,))
+        self.conn.commit()
 
     # -- outstanding aging (FIFO) -------------------------------------------
     @staticmethod
