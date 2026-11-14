@@ -110,6 +110,8 @@ class CashBookFrame(ctk.CTkFrame):
         ctk.CTkButton(op, text="Delete selected", fg_color="#b3261e",
                       hover_color="#8f1d17",
                       command=self.delete_selected).pack(side="right", padx=4)
+        ctk.CTkButton(op, text="Staff pay",
+                      command=self.staff_pay).pack(side="right", padx=4)
 
         fr, self.tv = _tree(self, ("Date", "Type", "Description", "Category",
                                    "In", "Out", "Balance"),
@@ -159,6 +161,11 @@ class CashBookFrame(ctk.CTkFrame):
         if messagebox.askyesno("Cash Book", "Delete this cash entry?"):
             self.db.delete_cash_entry(int(sel[0]))
             self.refresh()
+
+    def staff_pay(self):
+        """Open the Staff pay window (Round 26): monthly salaries + reminders."""
+        from staff_pay import open_staff_pay_dialog
+        open_staff_pay_dialog(self, self.db)
 
     def refresh(self):
         for r in self.tv.get_children():

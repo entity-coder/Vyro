@@ -34,6 +34,17 @@ no Chrome extension needed.
   the billing screen. Every offer is visible in the live bill totals before
   the bill is saved — nothing is added silently at save time. A line the
   operator edits by hand keeps the operator's price/discount.
+- **Staff pay (round 26, Nov 2026)** — employee payment reminders in a
+  new **Staff pay** window (`staff_pay.py`, opened from the Cash Book's
+  "Staff pay" button): add staff with a monthly salary and a pay day
+  (1–28), then see each month who is Paid / Partial / Due, with an
+  OVERDUE flag once the pay day has passed and salary is still unpaid.
+  Payments can be part-payments and are capped at the month's remaining
+  salary, so a salary can never be overpaid; every payment keeps its
+  date, mode (Cash/UPI/Bank) and note, and a wrong entry can be deleted
+  from the payment history. Like supplier payments, staff payments do
+  NOT post to Cash Book automatically — if a salary was paid in cash,
+  add it in Cash Book too (OUT / Salary) so cash-in-hand stays correct.
 - **Reports (round 17, Nov 2026)** — Marg-ERP-style names for the Reports
   functions and tabs, no behaviour changed: the invoice search is now the
   **Sale Register**, and the Reports tabs are **Month-wise sales**,
@@ -408,7 +419,8 @@ billbook_data`. After code changes, rebuild with `docker compose build`.
 | File | What it does |
 |---|---|
 | `main.py` | Entry point — loads theme, opens the app window |
-| `db.py` | SQLite schema + all data access: products, customers/khata, bills, bill items, payments, stock movements, bill history, suppliers, purchases, returns/credit notes, cash book, delivery challans, supplier payments, aging (FIFO), expiry; billing math (`compute_totals`) |
+| `db.py` | SQLite schema + all data access: products, customers/khata, bills, bill items, payments, stock movements, bill history, suppliers, purchases, returns/credit notes, cash book, delivery challans, supplier payments, staff + staff payments, aging (FIFO), expiry; billing math (`compute_totals`) |
+| `staff_pay.py` | Staff pay (Round 26): monthly salary status per staff member (Paid / Partial / Due, overdue flag past the pay day), payment recording capped at the month's remaining salary, payment history + delete, add/edit/deactivate staff dialog |
 | `invoices.py` | Invoice generation as **PDF** (reportlab, A4 + 80mm thermal) + print orchestration: builds the PDF per bill, saves it under `billbook_data/invoices/` |
 | `printing.py` | Universal print engine: PDF rendering, printer enumeration (`win32print` on Windows), direct OS printing via `os.startfile(path, "print")`, graceful PDF-only fallback elsewhere |
 | `ui.py` | Core screens: dashboard, billing (multi-tab), products, stock, customers, invoices, reports, invoice design, backup, settings |
@@ -418,7 +430,7 @@ billbook_data`. After code changes, rebuild with `docker compose build`.
 | `print_ui.py` | Print offer dialog, print settings dialog, invoice live preview, accent palette (split out of `ui.py` to keep modules small) |
 | `purchases_ui.py` | Purchases screen: supplier picker, purchase entry, purchase history |
 | `returns_ui.py` | Sales-return dialog (credit notes) + WhatsApp bill sharing |
-| `shop_ui.py` | Marg-parity screens: Cash Book (day book), delivery challans (+ challan dialog), Suppliers ledger, Outstanding aging report, Re-Order list |
+| `shop_ui.py` | Marg-parity screens: Cash Book (day book, incl. "Staff pay" button), delivery challans (+ challan dialog), Suppliers ledger, Outstanding aging report, Re-Order list |
 | `grid_billing.py` | Marg-style sale-entry grid for billing: DESCRIPTION/PACKING/STOCK/UNIT/RATE treeview, "Find Name ? >>" live filter, item-detail footer (PurRate/MRP/Margin%/Company), bill-lines table (ITEM/QTY/UNIT/RATE/DISC/AMOUNT) with selection syncing, Boxes→pieces helper, view toggle wiring; data-only panel that hands picks back to the billing flow (split out of `ui.py` to keep modules small) |
 | `backup.py` | Backup engine + Backup & restore screen: manual timestamped zips, restore with safety copy, silent auto-backup on exit with 14-backup retention |
 | `updater.py` | Self-update from GitHub: background latest-commit check, source-ZIP download + staging, `apply_update.bat` generator (copies new files excluding `billbook_data/`, rebuilds the `.exe` after exit, restarts) |
@@ -472,6 +484,10 @@ billbook_data`. After code changes, rebuild with `docker compose build`.
   official auto-send API for a desktop app, and unofficial automation risks
   a ban, so reminders are scheduled drafts you send with one tap; sent
   reminders are logged so they are not repeated within 7 days.
+- **Staff payments don't post to Cash Book automatically** — like
+  supplier payments, they live in their own ledger; if a salary was paid
+  in cash, add it in Cash Book too (OUT / Salary) so cash-in-hand stays
+  correct. The Staff pay window says so on screen.
 - **Local AI needs Ollama installed** — without it the assistant says so
   plainly and offers the Gemini API fallback; nothing crashes.
 
