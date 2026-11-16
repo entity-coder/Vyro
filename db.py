@@ -25,7 +25,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 def app_dir() -> Path:
     """Folder the app runs from. When frozen by PyInstaller, this is the folder
-    containing BillBook.exe; otherwise the folder containing this file."""
+    containing Vyro.exe; otherwise the folder containing this file."""
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parent
