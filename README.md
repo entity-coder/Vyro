@@ -1,5 +1,7 @@
 # Vyro — AI-Powered Billing & Shop Management App
 
+![Vyro logo](vyro-logo.png)
+
 A desktop billing application for a small Indian wholesale shop: fast counter
 billing with a saved product catalog, GST invoices you can print, customer
 khata (ledger), stock management, and sales reports — all offline.

@@ -24,7 +24,7 @@ if errorlevel 1 (
 
 echo.
 echo Building Vyro.exe (this takes a few minutes)...
-pyinstaller --noconfirm --onefile --windowed --name Vyro --hidden-import fitz --hidden-import pymupdf --hidden-import PIL.ImageWin main.py
+pyinstaller --noconfirm --onefile --windowed --name Vyro --icon vyro-logo.ico --add-data "vyro-logo.png;." --hidden-import fitz --hidden-import pymupdf --hidden-import PIL.ImageWin main.py
 if errorlevel 1 (
     echo.
     echo ERROR: PyInstaller build failed. See the output above.
