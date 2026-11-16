@@ -333,52 +333,44 @@ class DB:
         self.conn.commit()
 
     def _migrate(self):
-        """Additive schema upgrades for databases created by older builds."""
+        """Additive schema upgrades for databases created by older builds.
+
+        Each step is independent: a failure in one step must not skip the
+        rest, and failures are printed instead of silently swallowed.
+        """
+        def _add(table, col, ddl):
+            try:
+                cols = [r["name"] for r in
+                        self.conn.execute(
+                            "PRAGMA table_info(%s)" % table).fetchall()]
+                if col not in cols:
+                    self.conn.execute(ddl)
+            except Exception as e:
+                print("Vyro DB migration: %s.%s failed: %s" % (table, col, e))
+
+        _add("payments", "mode",
+             "ALTER TABLE payments ADD COLUMN mode TEXT DEFAULT 'Cash'")
+        _add("products", "mrp",
+             "ALTER TABLE products ADD COLUMN mrp REAL NOT NULL DEFAULT 0")
+        _add("products", "company",
+             "ALTER TABLE products ADD COLUMN company TEXT DEFAULT ''")
+        _add("products", "pack_size",
+             "ALTER TABLE products ADD COLUMN pack_size INTEGER "
+             "NOT NULL DEFAULT 1")
+        _add("purchase_items", "expiry_date",
+             "ALTER TABLE purchase_items ADD COLUMN expiry_date TEXT "
+             "DEFAULT ''")
+        # Round 25: per-customer discount % and credit limit.
+        _add("customers", "credit_limit",
+             "ALTER TABLE customers ADD COLUMN credit_limit REAL "
+             "NOT NULL DEFAULT 0")
+        _add("customers", "discount_percent",
+             "ALTER TABLE customers ADD COLUMN discount_percent REAL "
+             "NOT NULL DEFAULT 0")
+        # Round 27: per-supplier payment due date.
+        _add("suppliers", "pay_due_date",
+             "ALTER TABLE suppliers ADD COLUMN pay_due_date TEXT DEFAULT ''")
         try:
-            cols = [r["name"] for r in
-                    self.conn.execute("PRAGMA table_info(payments)").fetchall()]
-            if "mode" not in cols:
-                self.conn.execute(
-                    "ALTER TABLE payments ADD COLUMN mode TEXT DEFAULT 'Cash'")
-            pcols = [r["name"] for r in
-                     self.conn.execute("PRAGMA table_info(products)").fetchall()]
-            if "mrp" not in pcols:
-                self.conn.execute(
-                    "ALTER TABLE products ADD COLUMN mrp REAL NOT NULL DEFAULT 0")
-            if "company" not in pcols:
-                self.conn.execute(
-                    "ALTER TABLE products ADD COLUMN company TEXT DEFAULT ''")
-            if "pack_size" not in pcols:
-                self.conn.execute(
-                    "ALTER TABLE products ADD COLUMN pack_size INTEGER "
-                    "NOT NULL DEFAULT 1")
-            picols = [r["name"] for r in
-                      self.conn.execute("PRAGMA table_info(purchase_items)"
-                                        ).fetchall()]
-            if "expiry_date" not in picols:
-                self.conn.execute(
-                    "ALTER TABLE purchase_items ADD COLUMN expiry_date TEXT "
-                    "DEFAULT ''")
-            # Round 25: per-customer discount % and credit limit.
-            ccols = [r["name"] for r in
-                     self.conn.execute("PRAGMA table_info(customers)"
-                                       ).fetchall()]
-            if "credit_limit" not in ccols:
-                self.conn.execute(
-                    "ALTER TABLE customers ADD COLUMN credit_limit REAL "
-                    "NOT NULL DEFAULT 0")
-            if "discount_percent" not in ccols:
-                self.conn.execute(
-                    "ALTER TABLE customers ADD COLUMN discount_percent REAL "
-                    "NOT NULL DEFAULT 0")
-            # Round 27: per-supplier payment due date.
-            scols = [r["name"] for r in
-                     self.conn.execute("PRAGMA table_info(suppliers)"
-                                       ).fetchall()]
-            if "pay_due_date" not in scols:
-                self.conn.execute(
-                    "ALTER TABLE suppliers ADD COLUMN pay_due_date TEXT "
-                    "DEFAULT ''")
             # 2026-10-18: 80mm thermal is the default paper size now; flip
             # dbs still on the old seeded "A4" default, once. A user who
             # later switches back to A4 in Invoice Design keeps their choice.
@@ -392,9 +384,12 @@ class DB:
                 self.conn.execute(
                     "INSERT OR IGNORE INTO settings (key, value) VALUES "
                     "('paper_default_v2', '1')")
+        except Exception as e:
+            print("Vyro DB migration: paper_default_v2 failed: %s" % e)
+        try:
             self.conn.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            print("Vyro DB migration: commit failed: %s" % e)
 
     # -- generic helpers ----------------------------------------------------
     def _rows(self, sql, params=()):

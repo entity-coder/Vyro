@@ -241,6 +241,8 @@ def whatsapp_link(phone, message):
     """wa.me link for a message, or '' when no usable phone is saved."""
     from urllib.parse import quote
     digits = re.sub(r"\D", "", phone or "")
+    if digits.startswith("0"):
+        digits = digits[1:]
     if len(digits) == 10:
         digits = "91" + digits
     if len(digits) < 12:

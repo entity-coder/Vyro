@@ -19,6 +19,7 @@ REPO = "entity-coder/vyro"
 BRANCH = "main"
 API_COMMIT_URL = "https://api.github.com/repos/%s/commits/%s" % (REPO, BRANCH)
 ZIP_URL_TMPL = "https://github.com/%s/archive/{sha}.zip" % REPO
+RAW_VERSION_URL = "https://raw.githubusercontent.com/%s/main/version.txt" % REPO
 TIMEOUT = 12
 USER_AGENT = "Vyro-updater"
 
@@ -63,6 +64,21 @@ def remote_sha():
         return None
 
 
+def _get_text(url):
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+        return resp.read().decode("utf-8")
+
+
+def remote_version():
+    """version.txt content on main, or None when offline / on any failure."""
+    try:
+        text = _get_text(RAW_VERSION_URL)
+        return text.strip() or None
+    except Exception:
+        return None
+
+
 def check_update():
     """Returns (status, sha).
 
@@ -71,14 +87,25 @@ def check_update():
       "uptodate"  - already on the latest commit
       "baseline"  - no version.txt yet; recorded current SHA, treat as current
       "offline"   - could not reach GitHub; silently skip
+
+    version.txt holds the feature commit SHA (the last pushed batch), not
+    the remote HEAD SHA (the pin commit), so the comparison is against the
+    remote version.txt content, not the HEAD SHA. Comparing to HEAD made
+    every manual pull look like an available update.
     """
     sha = remote_sha()
     if not sha:
         return ("offline", None)
     current = local_version()
     if not current:
-        save_version(sha)
+        save_version(remote_version() or sha)
         return ("baseline", sha)
+    remote_ver = remote_version()
+    if remote_ver is not None:
+        if current.strip() == remote_ver.strip():
+            return ("uptodate", sha)
+        return ("available", sha)
+    # Fallback: raw version.txt unreachable; compare to HEAD SHA.
     if current.strip() == str(sha).strip():
         return ("uptodate", sha)
     return ("available", sha)
@@ -151,7 +178,7 @@ echo Applying update...
 robocopy "update_staging" "." /E /XD billbook_data update_staging __pycache__ .git dist build /XF apply_update.bat update_log.txt > update_log.txt 2>&1
 echo Rebuilding Vyro.exe (this takes a few minutes)...
 python -m pip install --quiet --upgrade customtkinter pyinstaller reportlab pywin32 pymupdf pillow >> update_log.txt 2>&1
-pyinstaller --noconfirm --onefile --windowed --name Vyro --icon vyro-logo.ico --add-data "vyro-logo.png;." --hidden-import fitz --hidden-import pymupdf --hidden-import PIL.ImageWin main.py >> update_log.txt 2>&1
+pyinstaller --noconfirm --onefile --windowed --name Vyro --hidden-import fitz --hidden-import pymupdf --hidden-import PIL.ImageWin main.py >> update_log.txt 2>&1
 if errorlevel 1 (
   echo UPDATE FAILED - your old version was NOT touched. > update_error.txt
   echo See update_log.txt for details. >> update_error.txt
@@ -161,7 +188,7 @@ if errorlevel 1 (
   exit /b 1
 )
 if exist "dist\\Vyro.exe" copy /Y "dist\\Vyro.exe" "Vyro.exe" >nul 2>&1
-echo %SHA% > version.txt
+if exist "BillBook.exe" del "BillBook.exe"
 rmdir /S /Q update_staging
 echo Update complete - restarting Vyro...
 if exist "Vyro.exe" ( start "" "Vyro.exe" ) else ( start "" python main.py )

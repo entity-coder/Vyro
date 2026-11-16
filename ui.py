@@ -789,7 +789,6 @@ class BillingFrame(ctk.CTkFrame):
         app.bind("<F6>", lambda e: self.toggle_price_mode())
         app.bind("<F8>", lambda e: self.focus_bill_discount())
         app.bind("<F9>", lambda e: self.repeat_last_bill_current())
-        app.bind("<Insert>", self._guarded_key(lambda: self.product_dialog()))
         app.bind("<Control-g>", self._guarded_key(self.toggle_bill_view))
         app.bind("<Prior>", lambda e: self.switch_tab(-1))
         app.bind("<Next>", lambda e: self.switch_tab(1))
@@ -957,7 +956,6 @@ class BillingFrame(ctk.CTkFrame):
             ("Tab", "Next field"),
             ("Delete", "Remove selected bill line"),
             ("End", "End bill: Save (default) or Discard"),
-            ("Insert", "Add new product"),
             ("PgUp / PgDn", "Switch bill tabs"),
             ("Ctrl+S / Ctrl+Enter", "Save bill"),
             ("Ctrl+P", "Print bill"),

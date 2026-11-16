@@ -283,7 +283,11 @@ def open_staff_pay_dialog(parent, db):
         if sid is None:
             return
         s = db.get_staff(int(sid))
-        month = month_var.get().strip()
+        try:
+            month = db._check_month(month_var.get())
+        except ValueError as e:
+            messagebox.showerror("Staff pay", str(e))
+            return
         remaining = (float(s["monthly_salary"])
                      - db.staff_paid_for_month(int(sid), month))
         if remaining <= 0.004:
