@@ -132,10 +132,11 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 CREATE TABLE IF NOT EXISTS suppliers (
-    id      INTEGER PRIMARY KEY AUTOINCREMENT,
-    name    TEXT NOT NULL,
-    phone   TEXT DEFAULT '',
-    address TEXT DEFAULT ''
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT NOT NULL,
+    phone        TEXT DEFAULT '',
+    address      TEXT DEFAULT '',
+    pay_due_date TEXT DEFAULT ''  -- Round 27: planned pay-by date (YYYY-MM-DD, '' = not set)
 );
 
 CREATE TABLE IF NOT EXISTS purchases (
@@ -370,6 +371,14 @@ class DB:
                 self.conn.execute(
                     "ALTER TABLE customers ADD COLUMN discount_percent REAL "
                     "NOT NULL DEFAULT 0")
+            # Round 27: per-supplier payment due date.
+            scols = [r["name"] for r in
+                     self.conn.execute("PRAGMA table_info(suppliers)"
+                                       ).fetchall()]
+            if "pay_due_date" not in scols:
+                self.conn.execute(
+                    "ALTER TABLE suppliers ADD COLUMN pay_due_date TEXT "
+                    "DEFAULT ''")
             # 2026-10-18: 80mm thermal is the default paper size now; flip
             # dbs still on the old seeded "A4" default, once. A user who
             # later switches back to A4 in Invoice Design keeps their choice.
@@ -1183,6 +1192,27 @@ class DB:
 
     def total_creditors(self):
         return sum(s["outstanding"] for s in self.suppliers_with_payables())
+
+    # -- supplier payment reminders (Round 27) -------------------------------
+    # One planned pay-by date per supplier, stored on the suppliers row
+    # ('' = not set). The amount owed itself is never stored — it is
+    # always purchases − payments made (supplier_outstanding).
+    def set_supplier_due_date(self, supplier_id, due_date):
+        """Set a supplier's planned pay-by date (YYYY-MM-DD); '' clears it."""
+        d = (due_date or "").strip()
+        if d:
+            try:
+                date.fromisoformat(d)
+            except ValueError:
+                raise ValueError(
+                    "Due date must be YYYY-MM-DD (e.g. 2026-11-20).")
+        self.conn.execute("UPDATE suppliers SET pay_due_date=? WHERE id=?",
+                          (d, supplier_id))
+        self.conn.commit()
+
+    def get_supplier_due_date(self, supplier_id):
+        s = self.get_supplier(supplier_id)
+        return (s["pay_due_date"] or "") if s else ""
 
     # -- staff pay (Round 26) -------------------------------------------------
     # Monthly salaries: one staff row per employee, one payment row per
