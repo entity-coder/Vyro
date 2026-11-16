@@ -506,6 +506,9 @@ class SuppliersFrame(ctk.CTkFrame):
                       command=self.payment_dialog).pack(side="left", padx=4)
         ctk.CTkButton(top, text="Payment history",
                       command=self.history_dialog).pack(side="left", padx=4)
+        ctk.CTkButton(top, text="Supplier reminders",
+                      command=self.supplier_reminders).pack(side="left",
+                                                            padx=4)
         self.payable_lbl = ctk.CTkLabel(top, text="",
                                      font=ctk.CTkFont(weight="bold"))
         self.payable_lbl.pack(side="right", padx=12)
@@ -539,6 +542,12 @@ class SuppliersFrame(ctk.CTkFrame):
             messagebox.showinfo("Suppliers", "Select a supplier first.")
             return None
         return int(sel[0])
+
+    def supplier_reminders(self):
+        """Open the Supplier payment reminders window (Round 27)."""
+        from supplier_pay import open_supplier_pay_dialog
+        shop = self.db.shop_profile().get("shop_name") or ""
+        open_supplier_pay_dialog(self, self.db, shop)
 
     def payment_dialog(self):
         sid = self.selected_id()
