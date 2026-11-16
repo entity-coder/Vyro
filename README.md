@@ -12,7 +12,7 @@ no Chrome extension needed.
 
 > **Shop PC note:** this repo ships source code plus a one-click
 > `build_exe.bat`. Run that batch file **once on a Windows PC** to compile
-> `BillBook.exe`. A Windows `.exe` can only be built on Windows — it was
+> `Vyro.exe`. A Windows `.exe` can only be built on Windows — it was
 > **not** compiled or tested on Windows during development (the author works
 > on Linux).
 
@@ -387,7 +387,7 @@ python main.py
 ```
 
 Data is stored in `billbook_data/billbook.db` next to the source (or next to
-`BillBook.exe` in the packaged build). To try it instantly: open **Products**
+`Vyro.exe` in the packaged build). To try it instantly: open **Products**
 → **Import CSV** → choose `sample_products.csv`, then open **Billing**.
 
 ## Build the Windows .exe (shop PC)
@@ -399,7 +399,7 @@ Data is stored in `billbook_data/billbook.db` next to the source (or next to
    `pymupdf` + `pillow` and compiles the app — takes a few minutes.
    (`pymupdf`/`pillow` power the silent printing: bills print with no PDF
    window opening.)
-3. Done: `dist\BillBook.exe` is the standalone app. Copy it to the Desktop.
+3. Done: `dist\Vyro.exe` is the standalone app. Copy it to the Desktop.
    Afterwards the shop PC **never needs Python again**.
 4. Keep the `billbook_data` folder next to the `.exe` — that is your data.
    Use the in-app **Backup** screen regularly (pen drive / Drive folder).
