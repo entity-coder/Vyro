@@ -56,6 +56,16 @@ no Chrome extension needed.
   always purchases minus payments made — never stored separately — and a
   fully paid supplier never shows as overdue. Like customer reminders,
   these are drafts, not auto-send.
+- **Staff attendance / shift log (round 28, Nov 2026)** — a new
+  **Attendance** button next to Staff pay in the Cash Book
+  (`staff_attendance.py`): give each staff member a usual shift
+  (morning / evening / full day), then mark each day present / absent /
+  leave with optional clock-in/out times. One record per staff member
+  per day — marking the same day again replaces the earlier entry. The
+  monthly view shows days present, absent and on leave per staff member,
+  so it sits next to Staff pay: attendance is the record of who turned
+  up, pay is the record of who was paid. Attendance never deducts salary
+  on its own; the owner reads the two windows together and decides.
 - **Reports (round 17, Nov 2026)** — Marg-ERP-style names for the Reports
   functions and tabs, no behaviour changed: the invoice search is now the
   **Sale Register**, and the Reports tabs are **Month-wise sales**,
@@ -430,10 +440,12 @@ billbook_data`. After code changes, rebuild with `docker compose build`.
 | File | What it does |
 |---|---|
 | `main.py` | Entry point — loads theme, opens the app window |
-| `db.py` | SQLite schema + all data access: products, customers/khata, bills, bill items, payments, stock movements, bill history, suppliers, purchases, returns/credit notes, cash book, delivery challans, supplier payments, staff + staff payments, aging (FIFO), expiry; billing math (`compute_totals`) |
+| `db.py` | SQLite schema + all data access: products, customers/khata, bills, bill items, payments, stock movements, bill history, suppliers, purchases, returns/credit notes, cash book, delivery challans, supplier payments, staff + staff payments + staff attendance, aging (FIFO), expiry; billing math (`compute_totals`) |
 | `staff_pay.py` | Staff pay (Round 26): monthly salary status per staff member (Paid / Partial / Due, overdue flag past the pay day), payment recording capped at the month's remaining salary, payment history + delete, add/edit/deactivate staff dialog |
 | `supplier_pay.py` | Supplier payment reminders (Round 27): one pay-by date per supplier, overdue flag once the date passes with money still owed, reminder drafts in English/Hindi/Marathi with one-tap WhatsApp send (reuses `new_features.whatsapp_link`) + the Supplier reminders dialog |
 | `test_round27.py` | Headless tests for Round 27 (real temp DB): owed amounts, due-date set/get, overdue flag, all three drafts, WhatsApp link shape, empty cases, migration |
+| `staff_attendance.py` | Staff attendance / shift log (Round 28): per-staff shift (morning / evening / full day), daily present/absent/leave with clock-in/out, monthly present/absent/leave per staff member + the Attendance dialog |
+| `test_round28.py` | Headless tests for Round 28 (real temp DB): shift set/get + invalid shift, record/upsert, one-row-per-day, invalid date/status/time, unknown/inactive staff, monthly counts, summary totals, migration |
 | `invoices.py` | Invoice generation as **PDF** (reportlab, A4 + 80mm thermal) + print orchestration: builds the PDF per bill, saves it under `billbook_data/invoices/` |
 | `printing.py` | Universal print engine: PDF rendering, printer enumeration (`win32print` on Windows), direct OS printing via `os.startfile(path, "print")`, graceful PDF-only fallback elsewhere |
 | `ui.py` | Core screens: dashboard, billing (multi-tab), products, stock, customers, invoices, reports, invoice design, backup, settings |
@@ -504,6 +516,10 @@ billbook_data`. After code changes, rebuild with `docker compose build`.
 - **One pay-by date per supplier** — a supplier has a single planned
   payment date for their whole outstanding balance, not one per purchase
   bill; set it to the earliest bill's deadline.
+- **Attendance is a log only** — marking someone absent or on leave never
+  deducts salary automatically; one record per staff member per day, and
+  there is no biometric or clock-device integration — times are typed in
+  by hand.
 - **Local AI needs Ollama installed** — without it the assistant says so
   plainly and offers the Gemini API fallback; nothing crashes.
 
