@@ -112,6 +112,9 @@ class CashBookFrame(ctk.CTkFrame):
                       command=self.delete_selected).pack(side="right", padx=4)
         ctk.CTkButton(op, text="Staff pay",
                       command=self.staff_pay).pack(side="right", padx=4)
+        ctk.CTkButton(op, text="Attendance",
+                      command=self.staff_attendance).pack(side="right",
+                                                           padx=4)
 
         fr, self.tv = _tree(self, ("Date", "Type", "Description", "Category",
                                    "In", "Out", "Balance"),
@@ -166,6 +169,12 @@ class CashBookFrame(ctk.CTkFrame):
         """Open the Staff pay window (Round 26): monthly salaries + reminders."""
         from staff_pay import open_staff_pay_dialog
         open_staff_pay_dialog(self, self.db)
+
+    def staff_attendance(self):
+        """Open the Staff attendance window (Round 28): shift log + monthly
+        present/absent/leave per staff member."""
+        from staff_attendance import open_staff_attendance_dialog
+        open_staff_attendance_dialog(self, self.db)
 
     def refresh(self):
         for r in self.tv.get_children():
