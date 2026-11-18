@@ -244,6 +244,7 @@ CREATE TABLE IF NOT EXISTS staff (
     monthly_salary REAL NOT NULL DEFAULT 0,
     pay_day        INTEGER NOT NULL DEFAULT 1,  -- day of month salary is due (1-28)
     phone          TEXT DEFAULT '',
+    shift          TEXT NOT NULL DEFAULT 'full day',  -- morning / evening / full day (Round 28)
     active         INTEGER NOT NULL DEFAULT 1,
     created_at     TEXT NOT NULL
 );
@@ -258,7 +259,24 @@ CREATE TABLE IF NOT EXISTS staff_payments (
     note      TEXT DEFAULT '',
     FOREIGN KEY (staff_id) REFERENCES staff(id)
 );
+
+CREATE TABLE IF NOT EXISTS staff_attendance (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    staff_id  INTEGER NOT NULL,
+    date      TEXT NOT NULL,              -- YYYY-MM-DD the shift was worked
+    status    TEXT NOT NULL,              -- present / absent / leave (Round 28)
+    clock_in  TEXT DEFAULT '',            -- HH:MM, optional
+    clock_out TEXT DEFAULT '',            -- HH:MM, optional
+    shift     TEXT DEFAULT '',            -- morning / evening / full day as worked that day
+    note      TEXT DEFAULT '',
+    UNIQUE (staff_id, date),
+    FOREIGN KEY (staff_id) REFERENCES staff(id)
+);
 """
+
+# Round 28: staff shifts and attendance statuses.
+STAFF_SHIFTS = ("morning", "evening", "full day")
+ATTENDANCE_STATUSES = ("present", "absent", "leave")
 
 DEFAULT_SETTINGS = {
     # Shop profile (printed on every bill)
@@ -370,6 +388,10 @@ class DB:
         # Round 27: per-supplier payment due date.
         _add("suppliers", "pay_due_date",
              "ALTER TABLE suppliers ADD COLUMN pay_due_date TEXT DEFAULT ''")
+        # Round 28: per-staff shift (morning / evening / full day).
+        _add("staff", "shift",
+             "ALTER TABLE staff ADD COLUMN shift TEXT NOT NULL "
+             "DEFAULT 'full day'")
         try:
             # 2026-10-18: 80mm thermal is the default paper size now; flip
             # dbs still on the old seeded "A4" default, once. A user who
@@ -1269,6 +1291,32 @@ class DB:
             raise ValueError("Month must be YYYY-MM (e.g. 2026-11).")
         return m
 
+    @staticmethod
+    def _check_date(date_str):
+        """Validate a YYYY-MM-DD date string; returns it unchanged."""
+        from datetime import datetime as _dt
+        d = (date_str or "").strip()
+        try:
+            _dt.strptime(d, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Date must be YYYY-MM-DD (e.g. 2026-11-17).")
+        return d
+
+    @staticmethod
+    def _check_time(time_str):
+        """Validate an HH:MM 24-hour time; '' means not given."""
+        from datetime import datetime as _dt
+        t = (time_str or "").strip()
+        if not t:
+            return ""
+        if len(t) != 5 or t[2] != ":":
+            raise ValueError("Time must be HH:MM (e.g. 09:30).")
+        try:
+            _dt.strptime(t, "%H:%M")
+        except ValueError:
+            raise ValueError("Time must be HH:MM (e.g. 09:30).")
+        return t
+
     def staff_paid_for_month(self, staff_id, month):
         row = self._one(
             "SELECT COALESCE(SUM(amount), 0) t FROM staff_payments"
@@ -1318,6 +1366,117 @@ class DB:
         self.conn.execute("DELETE FROM staff_payments WHERE id=?",
                           (payment_id,))
         self.conn.commit()
+
+    # -- staff attendance (Round 28) ----------------------------------------
+    # One row per staff member per day: present / absent / leave, with
+    # optional clock-in/out times. Attendance is a log only — it never
+    # changes pay; it just sits next to Staff pay so the owner can see
+    # who actually turned up in the month they were paid for.
+    def set_staff_shift(self, sid, shift):
+        """Set one staff member's usual shift (morning / evening / full day)."""
+        staff = self.get_staff(sid)
+        if not staff:
+            raise ValueError("Unknown staff member.")
+        s = (shift or "").strip().lower()
+        if s not in STAFF_SHIFTS:
+            raise ValueError(
+                "Shift must be one of: morning, evening, full day.")
+        self.conn.execute("UPDATE staff SET shift=? WHERE id=?", (s, sid))
+        self.conn.commit()
+
+    def get_staff_shift(self, sid):
+        """A staff member's usual shift; '' when the staff id is unknown."""
+        staff = self.get_staff(sid)
+        if not staff:
+            return ""
+        return staff["shift"] or "full day"
+
+    def record_attendance(self, staff_id, date_str, status, clock_in="",
+                          clock_out="", shift=None, note=""):
+        """Record (or overwrite) one day's attendance for one staff member.
+
+        One row per staff per day — recording the same day again replaces
+        the earlier entry instead of adding a second row. Inactive staff
+        cannot be marked (same rule as record_staff_payment).
+        """
+        staff = self.get_staff(staff_id)
+        if not staff:
+            raise ValueError("Unknown staff member.")
+        if not staff["active"]:
+            raise ValueError("Staff member is inactive.")
+        d = self._check_date(date_str)
+        st = (status or "").strip().lower()
+        if st not in ATTENDANCE_STATUSES:
+            raise ValueError(
+                "Status must be one of: present, absent, leave.")
+        ci = self._check_time(clock_in)
+        co = self._check_time(clock_out)
+        sh = (shift if shift is not None else staff["shift"] or "full day")
+        sh = sh.strip().lower()
+        if sh not in STAFF_SHIFTS:
+            raise ValueError(
+                "Shift must be one of: morning, evening, full day.")
+        self.conn.execute(
+            "INSERT INTO staff_attendance (staff_id, date, status, clock_in,"
+            " clock_out, shift, note) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT(staff_id, date) DO UPDATE SET status=excluded.status,"
+            " clock_in=excluded.clock_in, clock_out=excluded.clock_out,"
+            " shift=excluded.shift, note=excluded.note",
+            (staff_id, d, st, ci, co, sh, note or ""))
+        self.conn.commit()
+        row = self._one(
+            "SELECT id FROM staff_attendance WHERE staff_id=? AND date=?",
+            (staff_id, d))
+        return row["id"]
+
+    def attendance_for_day(self, date_str):
+        """One row per active staff member for a day: their status ('' when
+        nothing was recorded yet), clock-in/out, shift and note."""
+        d = self._check_date(date_str)
+        rows = []
+        for s in self.list_staff(active_only=True):
+            a = self._one(
+                "SELECT * FROM staff_attendance WHERE staff_id=? AND date=?",
+                (s["id"], d))
+            rows.append({
+                "id": s["id"], "name": s["name"], "role": s["role"] or "",
+                "shift": s["shift"] or "full day",
+                "status": a["status"] if a else "",
+                "clock_in": a["clock_in"] if a else "",
+                "clock_out": a["clock_out"] if a else "",
+                "note": a["note"] if a else "",
+            })
+        return rows
+
+    def attendance_for_month(self, month):
+        """One row per active staff member: days present / absent / leave in
+        `month` (YYYY-MM). Staff with nothing recorded show all zeros."""
+        m = self._check_month(month)
+        rows = []
+        for s in self.list_staff(active_only=True):
+            counts = self._one(
+                "SELECT"
+                " COALESCE(SUM(CASE WHEN status='present' THEN 1 ELSE 0 END), 0) p,"
+                " COALESCE(SUM(CASE WHEN status='absent' THEN 1 ELSE 0 END), 0) a,"
+                " COALESCE(SUM(CASE WHEN status='leave' THEN 1 ELSE 0 END), 0) l"
+                " FROM staff_attendance WHERE staff_id=?"
+                " AND substr(date, 1, 7)=?",
+                (s["id"], m))
+            rows.append({
+                "id": s["id"], "name": s["name"], "role": s["role"] or "",
+                "shift": s["shift"] or "full day",
+                "present": int(counts["p"]), "absent": int(counts["a"]),
+                "leave": int(counts["l"]),
+            })
+        return rows
+
+    def monthly_attendance_summary(self, month):
+        """(total present days, total absent days, total leave days,
+        active staff count) across all staff for `month`."""
+        rows = self.attendance_for_month(month)
+        return (sum(r["present"] for r in rows),
+                sum(r["absent"] for r in rows),
+                sum(r["leave"] for r in rows), len(rows))
 
     # -- outstanding aging (FIFO) -------------------------------------------
     @staticmethod
