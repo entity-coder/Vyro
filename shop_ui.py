@@ -115,6 +115,8 @@ class CashBookFrame(ctk.CTkFrame):
         ctk.CTkButton(op, text="Attendance",
                       command=self.staff_attendance).pack(side="right",
                                                            padx=4)
+        ctk.CTkButton(op, text="Expenses",
+                      command=self.shop_expenses).pack(side="right", padx=4)
 
         fr, self.tv = _tree(self, ("Date", "Type", "Description", "Category",
                                    "In", "Out", "Balance"),
@@ -175,6 +177,12 @@ class CashBookFrame(ctk.CTkFrame):
         present/absent/leave per staff member."""
         from staff_attendance import open_staff_attendance_dialog
         open_staff_attendance_dialog(self, self.db)
+
+    def shop_expenses(self):
+        """Open the Shop expenses window (Round 29): monthly costs by
+        category + add/delete."""
+        from shop_expenses import open_shop_expenses_dialog
+        open_shop_expenses_dialog(self, self.db)
 
     def refresh(self):
         for r in self.tv.get_children():
