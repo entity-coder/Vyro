@@ -272,11 +272,28 @@ CREATE TABLE IF NOT EXISTS staff_attendance (
     UNIQUE (staff_id, date),
     FOREIGN KEY (staff_id) REFERENCES staff(id)
 );
+
+CREATE TABLE IF NOT EXISTS shop_expenses (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    date        TEXT NOT NULL,              -- YYYY-MM-DD the expense was paid
+    category    TEXT NOT NULL,              -- one of EXPENSE_CATEGORIES (Round 29)
+    description TEXT NOT NULL,
+    amount      REAL NOT NULL,
+    mode        TEXT DEFAULT 'Cash',        -- Cash / UPI / Bank
+    note        TEXT DEFAULT '',
+    created_at  TEXT NOT NULL
+);
 """
 
 # Round 28: staff shifts and attendance statuses.
 STAFF_SHIFTS = ("morning", "evening", "full day")
 ATTENDANCE_STATUSES = ("present", "absent", "leave")
+
+# Round 29: shop expense categories. Salaries are NOT here — staff pay
+# (Round 26) already tracks those, so they would double count.
+EXPENSE_CATEGORIES = ("Rent", "Electricity", "Transport", "Packing",
+                      "Repairs", "Stationery", "Miscellaneous")
+EXPENSE_MODES = ("Cash", "UPI", "Bank")
 
 DEFAULT_SETTINGS = {
     # Shop profile (printed on every bill)
@@ -1477,6 +1494,63 @@ class DB:
         return (sum(r["present"] for r in rows),
                 sum(r["absent"] for r in rows),
                 sum(r["leave"] for r in rows), len(rows))
+
+    # -- shop expenses (Round 29) -----------------------------------------
+    # The shop's own costs (rent, electricity, transport, ...), separate
+    # from the Cash Book: the Cash Book tracks cash movement, this table
+    # tracks what the money was spent on, by month and category. Like
+    # staff pay, nothing here is auto-posted anywhere else.
+    def add_shop_expense(self, date_str, category, description, amount,
+                         mode="Cash", note=""):
+        """Record one shop expense. Returns the new row id."""
+        d = self._check_date(date_str)
+        cat = (category or "").strip()
+        if cat not in EXPENSE_CATEGORIES:
+            raise ValueError(
+                "Category must be one of: "
+                + ", ".join(EXPENSE_CATEGORIES) + ".")
+        desc = (description or "").strip()
+        if not desc:
+            raise ValueError("Description is required.")
+        amt = float(amount)
+        if amt <= 0:
+            raise ValueError("Amount must be greater than 0.")
+        m = (mode or "Cash").strip()
+        if m not in EXPENSE_MODES:
+            raise ValueError("Mode must be one of: Cash, UPI, Bank.")
+        cur = self.conn.execute(
+            "INSERT INTO shop_expenses (date, category, description, amount,"
+            " mode, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (d, cat, desc, amt, m, note or "",
+             datetime.now().strftime("%Y-%m-%d %H:%M")))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def list_shop_expenses(self, month=None, limit=200):
+        """Expenses, newest first; pass a YYYY-MM month to filter to it."""
+        if month:
+            m = self._check_month(month)
+            return self._rows(
+                "SELECT * FROM shop_expenses WHERE substr(date, 1, 7)=?"
+                " ORDER BY date DESC, id DESC LIMIT ?", (m, limit))
+        return self._rows(
+            "SELECT * FROM shop_expenses ORDER BY date DESC, id DESC"
+            " LIMIT ?", (limit,))
+
+    def delete_shop_expense(self, eid):
+        self.conn.execute("DELETE FROM shop_expenses WHERE id=?", (eid,))
+        self.conn.commit()
+
+    def monthly_expense_summary(self, month):
+        """(total spent, expense count, {category: total}) for `month`."""
+        m = self._check_month(month)
+        rows = self._rows(
+            "SELECT category, COALESCE(SUM(amount), 0) t, COUNT(*) c"
+            " FROM shop_expenses WHERE substr(date, 1, 7)=?"
+            " GROUP BY category", (m,))
+        totals = {r["category"]: float(r["t"]) for r in rows}
+        count = sum(int(r["c"]) for r in rows)
+        return sum(totals.values()), count, totals
 
     # -- outstanding aging (FIFO) -------------------------------------------
     @staticmethod
