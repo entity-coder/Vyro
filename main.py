@@ -28,6 +28,11 @@ def main():
     ctk.set_default_color_theme("green")
     app = App(db)
     try:
+        from recent_history import attach_recent_history
+        attach_recent_history(app)
+    except Exception:
+        pass  # the Recent panel is a convenience; never block startup
+    try:
         _logo = tk.PhotoImage(file=_resource_path("vyro-logo.png"))
         app.iconphoto(True, _logo)
         app._vyro_logo = _logo  # keep a reference so it is not garbage-collected

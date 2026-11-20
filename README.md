@@ -75,6 +75,13 @@ no Chrome extension needed.
   purchases. Separate from the Cash Book on purpose (cash movement vs
   what it was spent on); salaries stay in Staff pay, so nothing is
   double counted.
+- **Recent-history quick jump (round 30, Nov 2026)** — a new **Recent**
+  section under the nav buttons in the sidebar (`recent_history.py`):
+  every screen the owner opens is listed most recent first (up to 8),
+  and one click jumps straight back to it. The screen already open
+  never appears in the list. In-session only — the list resets when
+  the app closes, so it is for jumping between screens while working,
+  not a bookmark list.
 - **Reports (round 17, Nov 2026)** — Marg-ERP-style names for the Reports
   functions and tabs, no behaviour changed: the invoice search is now the
   **Sale Register**, and the Reports tabs are **Month-wise sales**,
@@ -457,6 +464,8 @@ billbook_data`. After code changes, rebuild with `docker compose build`.
 | `test_round28.py` | Headless tests for Round 28 (real temp DB): shift set/get + invalid shift, record/upsert, one-row-per-day, invalid date/status/time, unknown/inactive staff, monthly counts, summary totals, migration |
 | `shop_expenses.py` | Shop expense tracker (Round 29): shop costs by category (rent, electricity, transport, packing, repairs, stationery, miscellaneous) with date + payment mode, monthly totals by category + the Expenses dialog |
 | `test_round29.py` | Headless tests for Round 29 (real temp DB): add/list/delete, invalid date/category/mode/amount, monthly totals by category, month isolation, empty month, migration, cash book untouched |
+| `recent_history.py` | Recent-history quick jump (Round 30): "Recent" section in the sidebar, most-recent-first screen list (max 8, current screen excluded), one click jumps back; wraps app.show, in-session only |
+| `test_round30.py` | Headless tests for Round 30 (stub widgets + fake app): list logic (revisit to front, dedupe, cap, empty key), jump list excludes current, attach wraps show, click jumps back, attach twice is safe, unknown key falls back |
 | `invoices.py` | Invoice generation as **PDF** (reportlab, A4 + 80mm thermal) + print orchestration: builds the PDF per bill, saves it under `billbook_data/invoices/` |
 | `printing.py` | Universal print engine: PDF rendering, printer enumeration (`win32print` on Windows), direct OS printing via `os.startfile(path, "print")`, graceful PDF-only fallback elsewhere |
 | `ui.py` | Core screens: dashboard, billing (multi-tab), products, stock, customers, invoices, reports, invoice design, backup, settings |
